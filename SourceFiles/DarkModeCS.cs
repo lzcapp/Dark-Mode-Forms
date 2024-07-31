@@ -632,6 +632,16 @@ namespace DarkModeForms
 			{
 				slider.BackColor = control.Parent.BackColor;
 			}
+			if (control is RichTextBox richText)
+			{
+				richText.BackColor = richText.Parent.BackColor;
+				richText.BorderStyle = BorderStyle.None;
+			}
+			if (control is FlowLayoutPanel flowLayout)
+			{
+				flowLayout.BackColor = flowLayout.Parent.BackColor;
+				flowLayout.BorderStyle = BorderStyle.None;
+			}
 
 			if (control.ContextMenuStrip != null)
 				ThemeControl(control.ContextMenuStrip);
