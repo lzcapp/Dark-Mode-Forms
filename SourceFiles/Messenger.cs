@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Globalization;
 using static DarkModeForms.KeyValue;
-using Timer = System.Threading.Timer;
+using Timer = System.Windows.Forms.Timer;
 
 namespace DarkModeForms {
   /* Author: BlueMystic (bluemystic.play@gmail.com)  2024 */
