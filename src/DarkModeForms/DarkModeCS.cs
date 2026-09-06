@@ -1294,24 +1294,33 @@ namespace DarkModeForms
 
         private static int WindowsVersion()
         {
-            //for .Net4.8 and Minor
-            int result;
+            // Parsing ProductName (e.g. splitting "Windows 11 Pro" on spaces) was fragile:
+            // "Windows Server 2022 Standard" yields "Server" and Windows 11's NT version is
+            // still 10.0, so use the dedicated CurrentMajorVersionNumber value instead
+            // (present since Windows 10), falling back to Environment.OSVersion otherwise.
             try
             {
-                var reg = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-                string[] productName = reg.GetValue("ProductName").ToString().Split((char)32);
-                int.TryParse(productName[1], out result);
+                using (var reg = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    if (reg?.GetValue("CurrentMajorVersionNumber") is int currentMajor && currentMajor > 0)
+                    {
+                        return currentMajor;
+                    }
+                }
             }
             catch (Exception)
             {
-                OperatingSystem os = Environment.OSVersion;
-                result = os.Version.Major;
+                // fall through to Environment.OSVersion below
             }
 
-            return result;
-
-            //fixed .Net6
-            //return System.Environment.OSVersion.Version.Major;
+            try
+            {
+                return Environment.OSVersion.Version.Major;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
         }
 
         private static Color GetReadableColor(Color backgroundColor)
