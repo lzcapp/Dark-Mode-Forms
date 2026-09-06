@@ -31,8 +31,6 @@ namespace DarkModeForms
 		protected override void OnPaint(PaintEventArgs e)
 		{
 			Graphics g = e.Graphics;
-			SolidBrush brush = new SolidBrush(BarColor);
-			Brush BackBrush = new SolidBrush(this.BackColor);
 
 			float percent = (float)(val - min) / (float)(max - min);
 			Rectangle rect = this.ClientRectangle;
@@ -40,17 +38,18 @@ namespace DarkModeForms
 			// Calculate area for drawing the progress.
 			rect.Width = (int)((float)rect.Width * percent);
 
-			
-			g.FillRectangle(BackBrush, this.ClientRectangle); //Draw the brackgound
-			g.FillRectangle(brush, rect); // Draw the progress meter.
-			//ProgressBarRenderer.DrawHorizontalBar(g, rect);
+			using (SolidBrush brush = new SolidBrush(BarColor))
+			using (SolidBrush backBrush = new SolidBrush(this.BackColor))
+			{
+				g.FillRectangle(backBrush, this.ClientRectangle); //Draw the background
+				g.FillRectangle(brush, rect); // Draw the progress meter.
+				//ProgressBarRenderer.DrawHorizontalBar(g, rect);
+			}
 
 			// Draw a three-dimensional border around the control.
 			Draw3DBorder(g);
 
-			// Clean up.
-			brush.Dispose();
-			g.Dispose();
+			// NOTE: never dispose e.Graphics - it is owned by the framework (PaintEventArgs).
 		}
 
 		public int Minimum
