@@ -112,13 +112,20 @@ namespace DarkModeForms
 
 					if (OverCloseTab)
 					{
-						DrawTab(this.CreateGraphics(), this.TabPages[i], i);
+						// CreateGraphics() returns a Graphics the caller owns - dispose it.
+						using (Graphics g = CreateGraphics())
+						{
+							DrawTab(g, this.TabPages[i], i);
+						}
 					}
 					else
 					{
 						if (TabCloseColor == Color.Red)
 						{
-							DrawTab(this.CreateGraphics(), this.TabPages[i], i);
+							using (Graphics g = CreateGraphics())
+							{
+								DrawTab(g, this.TabPages[i], i);
+							}
 						}
 					}
 				}
