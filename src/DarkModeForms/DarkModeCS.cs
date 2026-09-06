@@ -572,26 +572,26 @@ namespace DarkModeForms
             string Mode = IsDarkMode ? "DarkMode_Explorer" : "ClearMode_Explorer";
             SetWindowTheme(control.Handle, Mode, null); //<- Attempts to apply Dark Mode using Win32 API if available.
 
-            control.GetType().GetProperty("BackColor")?.SetValue(control, OScolors.Control);
-            control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
+            control.BackColor = OScolors.Control;
+            control.ForeColor = OScolors.TextActive;
 
             /* Here we Finetune individual Controls  */
             if (control is Label lbl)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
+                lbl.BackColor = lbl.Parent.BackColor;
+                lbl.BorderStyle = BorderStyle.None;
                 control.Paint -= LabelPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += LabelPaintHandler;
             }
-            if (control is LinkLabel)
+            if (control is LinkLabel linkLabel)
             {
-                control.GetType().GetProperty("LinkColor")?.SetValue(control, OScolors.AccentLight);
-                control.GetType().GetProperty("VisitedLinkColor")?.SetValue(control, OScolors.Primary);
+                linkLabel.LinkColor = OScolors.AccentLight;
+                linkLabel.VisitedLinkColor = OScolors.Primary;
             }
-            if (control is TextBox)
+            if (control is TextBox textBox)
             {
                 //SetRoundBorders(tb, 4, OScolors.SurfaceDark, 1);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BStyle);
+                textBox.BorderStyle = BStyle;
             }
             if (control is NumericUpDown)
             {
@@ -646,18 +646,18 @@ namespace DarkModeForms
                     }
                 }
             }
-            if (control is GroupBox)
+            if (control is GroupBox groupBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
+                groupBox.BackColor = groupBox.Parent.BackColor;
+                groupBox.ForeColor = OScolors.TextActive;
                 control.Paint -= GroupBoxPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += GroupBoxPaintHandler;
             }
-            if (control is TableLayoutPanel)
+            if (control is TableLayoutPanel tableLayoutPanel)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextInactive);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
+                tableLayoutPanel.BackColor = tableLayoutPanel.Parent.BackColor;
+                tableLayoutPanel.ForeColor = OScolors.TextInactive;
+                tableLayoutPanel.BorderStyle = BorderStyle.None;
             }
             if (control is TabControl)
             {
@@ -676,23 +676,23 @@ namespace DarkModeForms
             //	control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextInactive);
             //	control.GetType().GetProperty("LineColor")?.SetValue(control, OScolors.Background);
             //}
-            if (control is PictureBox)
+            if (control is PictureBox pictureBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
+                pictureBox.BackColor = pictureBox.Parent.BackColor;
+                pictureBox.ForeColor = OScolors.TextActive;
+                pictureBox.BorderStyle = BorderStyle.None;
             }
-            if (control is CheckBox)
+            if (control is CheckBox checkBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
+                checkBox.BackColor = checkBox.Parent.BackColor;
+                checkBox.ForeColor = checkBox.Enabled ? OScolors.TextActive : OScolors.TextInactive;
                 control.Paint -= CheckBoxPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += CheckBoxPaintHandler;
             }
-            if (control is RadioButton)
+            if (control is RadioButton radioButton)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
+                radioButton.BackColor = radioButton.Parent.BackColor;
+                radioButton.ForeColor = radioButton.Enabled ? OScolors.TextActive : OScolors.TextInactive;
                 control.Paint -= RadioButtonPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += RadioButtonPaintHandler;
             }
@@ -709,9 +709,9 @@ namespace DarkModeForms
                 (control as ToolStrip).RenderMode = ToolStripRenderMode.Professional;
                 (control as ToolStrip).Renderer = new MyRenderer(new CustomColorTable(OScolors), ColorizeIcons) { MyColors = OScolors };
             }
-            if (control is ToolStripPanel) //<- empty area around ToolStrip
+            if (control is ToolStripPanel toolStripPanel) //<- empty area around ToolStrip
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
+                toolStripPanel.BackColor = toolStripPanel.Parent.BackColor;
             }
             if (control is ToolStripDropDown)
             {
@@ -730,9 +730,9 @@ namespace DarkModeForms
                 (control as ContextMenuStrip).Opening -= Tsdd_Opening; //just to make sure
                 (control as ContextMenuStrip).Opening += Tsdd_Opening;
             }
-            if (control is MdiClient) //<- empty area of MDI container window
+            if (control is MdiClient mdiClient) //<- empty area of MDI container window
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, OScolors.Surface);
+                mdiClient.BackColor = OScolors.Surface;
             }
             if (control is PropertyGrid)
             {
@@ -772,6 +772,9 @@ namespace DarkModeForms
             }
             if (control is TreeView)
             {
+                // TreeView.BorderStyle was removed from .NET Core WinForms, so this stays
+                // reflection-based to keep the net48 behavior (borderless tree in dark mode)
+                // while compiling against both target frameworks.
                 control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
                 //tree.DrawNode += (object? sender, DrawTreeNodeEventArgs e) =>
                 //{
@@ -1121,6 +1124,8 @@ namespace DarkModeForms
 
             if (_Control != null)
             {
+                // SetRoundBorders accepts any Control and BorderStyle exists only on some of
+                // them (and not at all on .NET Core), so this single call stays reflection-based.
                 _Control.GetType().GetProperty("BorderStyle")?.SetValue(_Control, BorderStyle.None);
                 _Control.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, _Control.Width, _Control.Height, Radius, Radius));
 
