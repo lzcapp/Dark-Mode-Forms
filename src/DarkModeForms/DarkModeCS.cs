@@ -578,7 +578,9 @@ namespace DarkModeForms
             /* Here we Finetune individual Controls  */
             if (control is Label lbl)
             {
-                lbl.BackColor = lbl.Parent.BackColor;
+                // ThemeControl is public and can be called on a standalone control whose
+                // Parent is null; fall back to the current color in that case.
+                lbl.BackColor = lbl.Parent?.BackColor ?? lbl.BackColor;
                 lbl.BorderStyle = BorderStyle.None;
                 control.Paint -= LabelPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += LabelPaintHandler;
@@ -665,14 +667,14 @@ namespace DarkModeForms
             }
             if (control is GroupBox groupBox)
             {
-                groupBox.BackColor = groupBox.Parent.BackColor;
+                groupBox.BackColor = groupBox.Parent?.BackColor ?? groupBox.BackColor;
                 groupBox.ForeColor = OScolors.TextActive;
                 control.Paint -= GroupBoxPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += GroupBoxPaintHandler;
             }
             if (control is TableLayoutPanel tableLayoutPanel)
             {
-                tableLayoutPanel.BackColor = tableLayoutPanel.Parent.BackColor;
+                tableLayoutPanel.BackColor = tableLayoutPanel.Parent?.BackColor ?? tableLayoutPanel.BackColor;
                 tableLayoutPanel.ForeColor = OScolors.TextInactive;
                 tableLayoutPanel.BorderStyle = BorderStyle.None;
             }
@@ -695,20 +697,20 @@ namespace DarkModeForms
             //}
             if (control is PictureBox pictureBox)
             {
-                pictureBox.BackColor = pictureBox.Parent.BackColor;
+                pictureBox.BackColor = pictureBox.Parent?.BackColor ?? pictureBox.BackColor;
                 pictureBox.ForeColor = OScolors.TextActive;
                 pictureBox.BorderStyle = BorderStyle.None;
             }
             if (control is CheckBox checkBox)
             {
-                checkBox.BackColor = checkBox.Parent.BackColor;
+                checkBox.BackColor = checkBox.Parent?.BackColor ?? checkBox.BackColor;
                 checkBox.ForeColor = checkBox.Enabled ? OScolors.TextActive : OScolors.TextInactive;
                 control.Paint -= CheckBoxPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += CheckBoxPaintHandler;
             }
             if (control is RadioButton radioButton)
             {
-                radioButton.BackColor = radioButton.Parent.BackColor;
+                radioButton.BackColor = radioButton.Parent?.BackColor ?? radioButton.BackColor;
                 radioButton.ForeColor = radioButton.Enabled ? OScolors.TextActive : OScolors.TextInactive;
                 control.Paint -= RadioButtonPaintHandler; //prevent uncontrolled multiple addition
                 control.Paint += RadioButtonPaintHandler;
@@ -728,7 +730,7 @@ namespace DarkModeForms
             }
             if (control is ToolStripPanel toolStripPanel) //<- empty area around ToolStrip
             {
-                toolStripPanel.BackColor = toolStripPanel.Parent.BackColor;
+                toolStripPanel.BackColor = toolStripPanel.Parent?.BackColor ?? toolStripPanel.BackColor;
             }
             if (control is ToolStripDropDown)
             {
@@ -838,12 +840,12 @@ namespace DarkModeForms
             }
             if (control is RichTextBox richText)
             {
-                richText.BackColor = richText.Parent.BackColor;
+                richText.BackColor = richText.Parent?.BackColor ?? richText.BackColor;
                 richText.BorderStyle = BorderStyle.None;
             }
             if (control is FlowLayoutPanel flowLayout)
             {
-                flowLayout.BackColor = flowLayout.Parent.BackColor;
+                flowLayout.BackColor = flowLayout.Parent?.BackColor ?? flowLayout.BackColor;
                 flowLayout.BorderStyle = BorderStyle.None;
             }
 
