@@ -554,6 +554,9 @@ namespace DarkModeForms
 
             if (controlHandleCreated == null) controlHandleCreated = (sender, e) =>
             {
+                // Respect ExcludeFromProcessing: a control excluded after ThemeControl
+                // subscribed this handler must not be themed when its handle is (re)created.
+                if (controlStatusStorage.GetControlStatusInfo((Control)sender)?.IsExcluded == true) return;
                 ApplySystemDarkTheme((Control)sender, IsDarkMode);
             };
             control.HandleCreated -= controlHandleCreated; //prevent uncontrolled multiple addition
