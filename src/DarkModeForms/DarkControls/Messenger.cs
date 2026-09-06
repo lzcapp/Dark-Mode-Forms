@@ -410,7 +410,13 @@ namespace DarkModeForms
 			#endregion
 
 
-			return form.ShowDialog();
+			DialogResult result = form.ShowDialog();
+			// The dialog is closed at this point; dispose it so its window handle and the
+			// DarkModeCS window-procedure hooks are released instead of waiting for the GC.
+			// Stop pending debounce timers first: they would fire against disposed controls.
+			StopPendingTimers();
+			form.Dispose();
+			return result;
 		}
 
 		#endregion MessageBox
@@ -947,7 +953,13 @@ namespace DarkModeForms
 				}
 			};
 
-			return form.ShowDialog();
+			DialogResult result = form.ShowDialog();
+			// The dialog is closed at this point; dispose it so its window handle and the
+			// DarkModeCS window-procedure hooks are released instead of waiting for the GC.
+			// Stop pending debounce timers first: they would fire against disposed controls.
+			StopPendingTimers();
+			form.Dispose();
+			return result;
 		}
 
 		#endregion InputBox
@@ -979,6 +991,25 @@ namespace DarkModeForms
 			};
 			timer.Start();
 			timers.Add(control, timer);
+		}
+
+		/// <summary>
+		/// Stops and releases every pending debounce timer. Call before disposing a dialog:
+		/// a timer that fired after its target controls were disposed would crash the app.
+		/// </summary>
+		private static void StopPendingTimers()
+		{
+			if (timers == null)
+			{
+				return;
+			}
+
+			foreach (Timer timer in timers.Values)
+			{
+				timer.Stop();
+				timer.Dispose();
+			}
+			timers.Clear();
 		}
 
 		/// <summary>Returns the Current Language ID of the PC.</summary>
