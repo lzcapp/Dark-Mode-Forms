@@ -1020,14 +1020,15 @@ namespace DarkModeForms
                 //get the theme --> only if Windows 10 or newer
                 if (IsWindows10orGreater())
                 {
-                    var color = colors.ColorizationColor;
-
-                    var colorValue = long.Parse(color.ToString(), System.Globalization.NumberStyles.HexNumber);
+                    // ColorizationColor is in 0xAARRGGBB format (unlike COLORREF's 0x00BBGGRR).
+                    // Extract the components with plain bit math: parsing the value's decimal
+                    // string as hex (the previous implementation) corrupted every component.
+                    uint colorValue = colors.ColorizationColor;
 
                     var transparency = (colorValue >> 24) & 0xFF;
                     var red = (colorValue >> 16) & 0xFF;
                     var green = (colorValue >> 8) & 0xFF;
-                    var blue = (colorValue >> 0) & 0xFF;
+                    var blue = colorValue & 0xFF;
 
                     return Color.FromArgb((int)transparency, (int)red, (int)green, (int)blue);
                 }
@@ -1052,13 +1053,14 @@ namespace DarkModeForms
             //get the theme --> only if Windows 10 or newer
             if (IsWindows10orGreater())
             {
-                var color = colors.ColorizationColor;
-
-                var colorValue = long.Parse(color.ToString(), System.Globalization.NumberStyles.HexNumber);
+                // ColorizationColor is in 0xAARRGGBB format (unlike COLORREF's 0x00BBGGRR).
+                // Extract the components with plain bit math: parsing the value's decimal
+                // string as hex (the previous implementation) corrupted every component.
+                uint colorValue = colors.ColorizationColor;
 
                 var red = (colorValue >> 16) & 0xFF;
                 var green = (colorValue >> 8) & 0xFF;
-                var blue = (colorValue >> 0) & 0xFF;
+                var blue = colorValue & 0xFF;
 
                 return Color.FromArgb(255, (int)red, (int)green, (int)blue);
             }
