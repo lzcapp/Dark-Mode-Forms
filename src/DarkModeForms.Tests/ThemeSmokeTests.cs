@@ -55,7 +55,9 @@ public class ThemeSmokeTests
         form.Controls.Add(new ListView { View = View.Details });
         form.Controls.Add(new PictureBox());
 
-        using var dm = new DarkModeCS(form); // SystemDefault: follows the machine's actual theme
+        // DarkModeCS is not IDisposable: its cleanup is wired to the Form's Disposed
+        // event, so disposing the form below releases the window-procedure hooks.
+        var dm = new DarkModeCS(form); // SystemDefault: follows the machine's actual theme
 
         dm.ThemeControl(form);
 
@@ -76,7 +78,9 @@ public class ThemeSmokeTests
         panel.Controls.AddRange(new Control[] { label, checkBox });
         form.Controls.Add(panel);
 
-        using var dm = new DarkModeCS(form);
+        // DarkModeCS is not IDisposable: its cleanup is wired to the Form's Disposed
+        // event, so disposing the form below releases the window-procedure hooks.
+        var dm = new DarkModeCS(form);
 
         // Fires Form.Load -> ApplyTheme(), and creates the Form's handle, which also
         // exercises the window-procedure subclassing lifecycle.
