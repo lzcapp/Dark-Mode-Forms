@@ -227,16 +227,23 @@ namespace DarkModeForms
 			// Draws the Tab Header:
 			Color HeaderColor = isSelected ? SelectTabColor : BackColor;
 			using (Brush brush = new SolidBrush(HeaderColor))
+			using (Pen headerPen = new Pen(HeaderColor))
 			{
 				g.FillPolygon(brush, points);
-				g.DrawPolygon(new Pen(HeaderColor), points);
+				g.DrawPolygon(headerPen, points);
 
 				if (isSelected)
 				{
-					g.DrawLine(new Pen(BackColor),
-						new Point(tabRect.Left, tabRect.Top), new Point(tabRect.Left + 3, tabRect.Top));
-					g.DrawLine(new Pen(Color.DodgerBlue),
-						new Point(tabRect.Left + 3, tabRect.Top), new Point(tabRect.Left + tabRect.Width, tabRect.Top));
+					using (Pen linePen = new Pen(BackColor))
+					{
+						g.DrawLine(linePen,
+							new Point(tabRect.Left, tabRect.Top), new Point(tabRect.Left + 3, tabRect.Top));
+					}
+					using (Pen accentPen = new Pen(Color.DodgerBlue))
+					{
+						g.DrawLine(accentPen,
+							new Point(tabRect.Left + 3, tabRect.Top), new Point(tabRect.Left + tabRect.Width, tabRect.Top));
+					}
 				}
 			}
 
@@ -251,12 +258,13 @@ namespace DarkModeForms
 
 				// If Mouse is over the CloseButton, it Draws it in Red, otherwise uses default Color:
 				TabCloseColor = OverCloseTab ? Color.Red : this.ForeColor;
-				Brush b = new SolidBrush(TabCloseColor);
-				Pen p = new Pen(b);
-
-				// Draws an X:
-				g.DrawLine(p, r.X, r.Y, r.X + r.Width, r.Y + r.Height);
-				g.DrawLine(p, r.X + r.Width, r.Y, r.X, r.Y + r.Height);
+				using (Brush b = new SolidBrush(TabCloseColor))
+				using (Pen p = new Pen(b))
+				{
+					// Draws an X:
+					g.DrawLine(p, r.X, r.Y, r.X + r.Width, r.Y + r.Height);
+					g.DrawLine(p, r.X + r.Width, r.Y, r.X, r.Y + r.Height);
+				}
 			}			
 
 			// Draws the Title of the Tab:
