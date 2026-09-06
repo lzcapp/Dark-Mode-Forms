@@ -26,8 +26,8 @@ jobs:
       run: dotnet restore $env:Solution_Name
     - name: Build (Release)
       run: dotnet build $env:Solution_Name --no-restore -c Release -p:GenerateResourceUsePreserializedResources=true
-    #- name: Test
-      #run: dotnet test $env:Solution_Name --no-build -c Release
+    - name: Test
+      run: dotnet test $env:Solution_Name --no-build -c Release
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:

@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DarkModeForms", "DarkModeFo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Example", "Example\Example.csproj", "{A0FC842C-5103-E242-CA0E-06B13ABAA9ED}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DarkModeForms.Tests", "DarkModeForms.Tests\DarkModeForms.Tests.csproj", "{73B7FF3D-603D-414C-A301-744089C7F568}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{A0FC842C-5103-E242-CA0E-06B13ABAA9ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A0FC842C-5103-E242-CA0E-06B13ABAA9ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A0FC842C-5103-E242-CA0E-06B13ABAA9ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73B7FF3D-603D-414C-A301-744089C7F568}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73B7FF3D-603D-414C-A301-744089C7F568}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73B7FF3D-603D-414C-A301-744089C7F568}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73B7FF3D-603D-414C-A301-744089C7F568}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
