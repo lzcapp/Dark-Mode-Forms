@@ -795,23 +795,6 @@ namespace DarkModeForms
                 // reflection-based to keep the net48 behavior (borderless tree in dark mode)
                 // while compiling against both target frameworks.
                 control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
-                //tree.DrawNode += (object? sender, DrawTreeNodeEventArgs e) =>
-                //{
-                //  if (e.Node.ImageIndex != -1)
-                //  {
-                //	Image image = tree.ImageList.Images[e.Node.ImageIndex];
-                //	using (Graphics g = Graphics.FromImage(image))
-                //	{
-                //	  g.InterpolationMode = InterpolationMode.HighQualityBilinear;
-                //	  g.CompositingQuality = CompositingQuality.HighQuality;
-                //	  g.SmoothingMode = SmoothingMode.HighQuality;
-
-                //	  g.DrawImage(DarkModeCS.ChangeToColor(image, OScolors.TextInactive), new Point(0,0));
-                //	}
-                //	tree.ImageList.Images[e.Node.ImageIndex] = image;
-                //  }
-                //  tree.Invalidate();
-                //};
             }
             if (control is DataGridView)
             {
@@ -1470,42 +1453,16 @@ namespace DarkModeForms
             ColorizeIcons = pColorizeIcons;
         }
 
-        private void DrawTitleBar(Graphics g, Rectangle rect)
-        {
-            // Assign the image for the grip.
-            //Image titlebarGrip = titleBarGripBmp;
-
-            // Fill the titlebar.
-            // This produces the gradient and the rounded-corner effect.
-            //g.DrawLine(new Pen(titlebarColor1), rect.X, rect.Y, rect.X + rect.Width, rect.Y);
-            //g.DrawLine(new Pen(titlebarColor2), rect.X, rect.Y + 1, rect.X + rect.Width, rect.Y + 1);
-            //g.DrawLine(new Pen(titlebarColor3), rect.X, rect.Y + 2, rect.X + rect.Width, rect.Y + 2);
-            //g.DrawLine(new Pen(titlebarColor4), rect.X, rect.Y + 3, rect.X + rect.Width, rect.Y + 3);
-            //g.DrawLine(new Pen(titlebarColor5), rect.X, rect.Y + 4, rect.X + rect.Width, rect.Y + 4);
-            //g.DrawLine(new Pen(titlebarColor6), rect.X, rect.Y + 5, rect.X + rect.Width, rect.Y + 5);
-            //g.DrawLine(new Pen(titlebarColor7), rect.X, rect.Y + 6, rect.X + rect.Width, rect.Y + 6);
-
-            // Center the titlebar grip.
-            //g.DrawImage(
-            //  titlebarGrip,
-            //  new Point(rect.X + ((rect.Width / 2) - (titlebarGrip.Width / 2)),
-            //  rect.Y + 1));
-        }
-
+        // Grip and ToolStrip border drawing were disabled upstream (DrawTitleBar had an
+        // entirely commented-out body). Keep these overrides empty to preserve that behavior.
         // This method handles the RenderGrip event.
         protected override void OnRenderGrip(ToolStripGripRenderEventArgs e)
         {
-            DrawTitleBar(
-              e.Graphics,
-              new Rectangle(0, 0, e.ToolStrip.Width, 7));
         }
 
         // This method handles the RenderToolStripBorder event.
         protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
         {
-            DrawTitleBar(
-              e.Graphics,
-              new Rectangle(0, 0, e.ToolStrip.Width, 7));
         }
 
         // Background of the whole ToolBar Or MenuBar:
@@ -1607,21 +1564,7 @@ namespace DarkModeForms
                 e.Graphics.FillRectangle(b, bounds);
             }
 
-            //3. Draws the Chevron:
-
-            #region Chevron
-
-            //int Padding = 2; //<- From the right side
-            //Size cSize = new Size(8, 4); //<- Size of the Chevron: 8x4 px
-            //Pen ChevronPen = new Pen(MyColors.TextInactive, 2); //<- Color and Border Width
-            //Point P1 = new Point(bounds.Width - (cSize.Width + Padding), (bounds.Height / 2) - (cSize.Height / 2));
-            //Point P2 = new Point(bounds.Width - Padding, (bounds.Height / 2) - (cSize.Height / 2));
-            //Point P3 = new Point(bounds.Width - (cSize.Width / 2 + Padding), (bounds.Height / 2) + (cSize.Height / 2));
-
-            //e.Graphics.DrawLine(ChevronPen, P1, P3);
-            //e.Graphics.DrawLine(ChevronPen, P2, P3);
-
-            #endregion Chevron
+            //3. The chevron is intentionally not drawn on drop-down buttons (commented out upstream).
         }
 
         // For SplitButtons on a ToolBar:
