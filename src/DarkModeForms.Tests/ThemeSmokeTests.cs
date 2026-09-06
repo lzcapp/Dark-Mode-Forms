@@ -61,7 +61,9 @@ public class ThemeSmokeTests
 
         dm.ThemeControl(form);
 
-        Assert.Equal(dm.OScolors.Control, panel.BackColor);
+        // Panels are container surfaces: ThemeControl gives them Background (not Control,
+        // which is reserved for actual input controls like buttons/combos).
+        Assert.Equal(dm.OScolors.Background, panel.BackColor);
         Assert.Equal(panel.BackColor, label.BackColor); // labels inherit their parent's BackColor
         Assert.Equal(panel.BackColor, checkBox.BackColor);
         Assert.Equal(dm.OScolors.TextActive, checkBox.ForeColor); // enabled controls use TextActive
