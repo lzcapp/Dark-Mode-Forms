@@ -791,3 +791,4 @@ fabric.properties
 # Additional files built by Visual Studio
 
 # End of https://www.toptal.com/developers/gitignore/api/rider,csharp,intellij+all,visualstudio,visualstudiocode,archive,archives
+/.workbuddy
