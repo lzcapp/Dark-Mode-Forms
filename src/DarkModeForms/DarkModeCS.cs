@@ -514,7 +514,10 @@ namespace DarkModeForms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + ex.StackTrace, "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // A library must not pop modal dialogs from its internals: ApplyTheme can run
+                // during Load, on the WM_SETTINGSCHANGE pump or in designer scenarios where a
+                // blocking MessageBox would deadlock or crash the host. Log instead.
+                System.Diagnostics.Debug.WriteLine("[DarkModeCS] ApplyTheme failed: " + ex);
             }
         }
 
