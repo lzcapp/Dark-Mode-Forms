@@ -595,10 +595,11 @@ namespace DarkModeForms
                     if (control.Enabled == false && IsDarkMode)
                     {
                         var radio = (sender as GroupBox);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(6, 0));
+                        using (Brush B = new SolidBrush(control.ForeColor))
+                        {
+                            e.Graphics.DrawString(radio.Text, radio.Font,
+                              B, new PointF(6, 0));
+                        }
                     }
                 };
             }
@@ -672,10 +673,11 @@ namespace DarkModeForms
                     if (control.Enabled == false && IsDarkMode)
                     {
                         var radio = (sender as CheckBox);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(16, 0));
+                        using (Brush B = new SolidBrush(control.ForeColor))
+                        {
+                            e.Graphics.DrawString(radio.Text, radio.Font,
+                              B, new PointF(16, 0));
+                        }
                     }
                 };
             }
@@ -688,10 +690,11 @@ namespace DarkModeForms
                     if (control.Enabled == false && IsDarkMode)
                     {
                         var radio = (sender as RadioButton);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(16, 0));
+                        using (Brush B = new SolidBrush(control.ForeColor))
+                        {
+                            e.Graphics.DrawString(radio.Text, radio.Font,
+                              B, new PointF(16, 0));
+                        }
                     }
                 };
             }
@@ -850,11 +853,13 @@ namespace DarkModeForms
                         if (vs.Visible)
                         {
                             //only when both the scrollbars are visible, do the actual painting
-                            Brush brush = new SolidBrush(OScolors.SurfaceDark);
-                            var w = vs.Size.Width;
-                            var h = hs.Size.Height;
-                            e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
-                              dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
+                            using (Brush brush = new SolidBrush(OScolors.SurfaceDark))
+                            {
+                                var w = vs.Size.Width;
+                                var h = hs.Size.Height;
+                                e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
+                                  dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
+                            }
                         }
                     }
                 };
@@ -1380,8 +1385,6 @@ namespace DarkModeForms
             Color gradientBegin = MyColors.Background; // Color.FromArgb(203, 225, 252);
             Color gradientEnd = MyColors.Background;
 
-            Pen BordersPencil = new Pen(MyColors.Background);
-
             ToolStripButton button = e.Item as ToolStripButton;
             if (button.Pressed || button.Checked)
             {
@@ -1403,34 +1406,35 @@ namespace DarkModeForms
                 g.FillRectangle(b, bounds);
             }
 
-            e.Graphics.DrawRectangle(
-              BordersPencil,
-              bounds);
-
-            g.DrawLine(
-              BordersPencil,
-              bounds.X,
-              bounds.Y,
-              bounds.Width - 1,
-              bounds.Y);
-
-            g.DrawLine(
-              BordersPencil,
-              bounds.X,
-              bounds.Y,
-              bounds.X,
-              bounds.Height - 1);
-
-            ToolStrip toolStrip = button.Owner;
-
-            if (!(button.Owner.GetItemAt(button.Bounds.X, button.Bounds.Bottom + 1) is ToolStripButton nextItem))
+            using (Pen BordersPencil = new Pen(MyColors.Background))
             {
+                e.Graphics.DrawRectangle(
+                  BordersPencil,
+                  bounds);
+
                 g.DrawLine(
                   BordersPencil,
                   bounds.X,
-                  bounds.Height - 1,
-                  bounds.X + bounds.Width - 1,
+                  bounds.Y,
+                  bounds.Width - 1,
+                  bounds.Y);
+
+                g.DrawLine(
+                  BordersPencil,
+                  bounds.X,
+                  bounds.Y,
+                  bounds.X,
                   bounds.Height - 1);
+
+                if (!(button.Owner.GetItemAt(button.Bounds.X, button.Bounds.Bottom + 1) is ToolStripButton nextItem))
+                {
+                    g.DrawLine(
+                      BordersPencil,
+                      bounds.X,
+                      bounds.Height - 1,
+                      bounds.X + bounds.Width - 1,
+                      bounds.Height - 1);
+                }
             }
         }
 
@@ -1441,8 +1445,6 @@ namespace DarkModeForms
             Rectangle bounds = new Rectangle(Point.Empty, e.Item.Size);
             Color gradientBegin = MyColors.Background; // Color.FromArgb(203, 225, 252);
             Color gradientEnd = MyColors.Background;
-
-            Pen BordersPencil = new Pen(MyColors.Background);
 
             //1. Determine the colors to use:
             if (e.Item.Pressed)
@@ -1518,13 +1520,15 @@ namespace DarkModeForms
 
             int Padding = 2; //<- From the right side
             Size cSize = new Size(8, 4); //<- Size of the Chevron: 8x4 px
-            Pen ChevronPen = new Pen(MyColors.TextInactive, 2); //<- Color and Border Width
             Point P1 = new Point(bounds.Width - (cSize.Width + Padding), (bounds.Height / 2) - (cSize.Height / 2));
             Point P2 = new Point(bounds.Width - Padding, (bounds.Height / 2) - (cSize.Height / 2));
             Point P3 = new Point(bounds.Width - (cSize.Width / 2 + Padding), (bounds.Height / 2) + (cSize.Height / 2));
 
-            e.Graphics.DrawLine(ChevronPen, P1, P3);
-            e.Graphics.DrawLine(ChevronPen, P2, P3);
+            using (Pen ChevronPen = new Pen(MyColors.TextInactive, 2)) //<- Color and Border Width
+            {
+                e.Graphics.DrawLine(ChevronPen, P1, P3);
+                e.Graphics.DrawLine(ChevronPen, P2, P3);
+            }
 
             #endregion Chevron
         }
@@ -1551,7 +1555,10 @@ namespace DarkModeForms
             if (e.Item is ComboBox)
             {
                 Rectangle rect = new Rectangle(Point.Empty, e.Item.Size);
-                e.Graphics.DrawRectangle(new Pen(MyColors.ControlLight, 1), rect);
+                using (Pen pen = new Pen(MyColors.ControlLight, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, rect);
+                }
             }
         }
 
