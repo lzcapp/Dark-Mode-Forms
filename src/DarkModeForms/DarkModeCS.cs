@@ -1218,7 +1218,20 @@ namespace DarkModeForms
             }
             return bmp2;
         }
-        public static Image ChangeToColor(Image bmp, Color c) => ChangeToColor((Bitmap)bmp, c);
+        public static Image ChangeToColor(Image bmp, Color c)
+        {
+            // A ToolStrip icon could be an Icon or a metafile, not necessarily a Bitmap:
+            // a hard cast would throw InvalidCastException during painting. Rasterize as a fallback.
+            if (bmp is Bitmap bitmap)
+            {
+                return ChangeToColor(bitmap, c);
+            }
+
+            using (Bitmap rasterized = new Bitmap(bmp))
+            {
+                return ChangeToColor(rasterized, c);
+            }
+        }
 
         #endregion Public Methods
 
