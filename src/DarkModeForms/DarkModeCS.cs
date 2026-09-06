@@ -638,7 +638,10 @@ namespace DarkModeForms
                 // Process the panel within the container
                 panel.BackColor = OScolors.Background;
                 panel.BorderStyle = BorderStyle.None;
-                if (!(panel.Parent is TabControl) || !(panel.Parent is TableLayoutPanel))
+                // A single parent cannot be both types; the old "||" form made this
+                // condition always true, so every Panel got rounded corners even inside
+                // TabControls/TableLayoutPanels where the region hack misbehaves.
+                if (!(panel.Parent is TabControl) && !(panel.Parent is TableLayoutPanel))
                 {
                     if (RoundedPanels)
                     {
