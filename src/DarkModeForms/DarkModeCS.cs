@@ -288,8 +288,8 @@ namespace DarkModeForms
 
 
         private IntPtr originalWndProc;
+        private IntPtr subclassedHandle;
         private WndProc newWndProcDelegate;
-        private IntPtr formHandle;
         private bool applyingTheme; // Flag to prevent recursion
         private bool isFormLoaded = false;
         #endregion
@@ -363,21 +363,78 @@ namespace DarkModeForms
             ColorizeIcons = _ColorizeIcons;
             RoundedPanels = _RoundedPanels;
             ApplyColorMode();
-            if (originalWndProc == IntPtr.Zero)
+
+            // Subclass the Form's window procedure so system theme changes (WM_SETTINGSCHANGE)
+            // reach us. If the Form handle was already created (e.g. accessed before this call),
+            // HandleCreated will never fire again, so subclass immediately in that case.
+            _Form.HandleCreated += FormHandleCreated;
+            _Form.Disposed += FormDisposed;
+            if (_Form.IsHandleCreated)
             {
-                _Form.HandleCreated += (sender, e) =>
-                {
-                    HandleRef handleRef = new HandleRef(_Form, _Form.Handle);
-                    newWndProcDelegate = CustomWndProc;
-                    originalWndProc = SetWindowLongPtr(handleRef, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(newWndProcDelegate));
-                };
+                SubclassWindowProc();
             }
+
             // This Fires after the normal 'Form_Load' event
             _Form.Load += (sender, e) =>
             {
                 ApplyTheme();
                 isFormLoaded = true;
             };
+        }
+
+        /// <summary>Raised whenever the Form's window handle is created or recreated.</summary>
+        private void FormHandleCreated(object sender, EventArgs e)
+        {
+            SubclassWindowProc();
+        }
+
+        /// <summary>Substitutes the Form's window procedure with <see cref="CustomWndProc"/>,
+        /// keeping a reference to the previous one so it can be restored later.</summary>
+        private void SubclassWindowProc()
+        {
+            IntPtr handle = OwnerForm.Handle;
+            if (originalWndProc != IntPtr.Zero && subclassedHandle == handle)
+            {
+                // This very handle is already subclassed (e.g. HandleCreated fired again for it)
+                return;
+            }
+
+            if (originalWndProc != IntPtr.Zero)
+            {
+                // The handle was recreated: try to restore the previous window procedure first.
+                // Best effort - the old handle may already be destroyed, in which case the call is a no-op.
+                RestoreWindowProc();
+            }
+
+            newWndProcDelegate = CustomWndProc;
+            originalWndProc = SetWindowLongPtr(
+              new HandleRef(OwnerForm, handle),
+              GWLP_WNDPROC,
+              Marshal.GetFunctionPointerForDelegate(newWndProcDelegate));
+            subclassedHandle = handle;
+        }
+
+        /// <summary>Restores the original window procedure and releases all references.</summary>
+        private void RestoreWindowProc()
+        {
+            if (originalWndProc != IntPtr.Zero && subclassedHandle != IntPtr.Zero)
+            {
+                SetWindowLongPtr(
+                  new HandleRef(OwnerForm, subclassedHandle),
+                  GWLP_WNDPROC,
+                  originalWndProc);
+            }
+            originalWndProc = IntPtr.Zero;
+            subclassedHandle = IntPtr.Zero;
+            newWndProcDelegate = null;
+        }
+
+        /// <summary>Raised when the Form is disposed: restore the window procedure and unhook events.</summary>
+        private void FormDisposed(object sender, EventArgs e)
+        {
+            RestoreWindowProc();
+            OwnerForm.HandleCreated -= FormHandleCreated;
+            OwnerForm.Disposed -= FormDisposed;
         }
         private void ApplyColorMode()
         {
