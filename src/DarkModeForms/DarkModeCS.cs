@@ -622,10 +622,24 @@ namespace DarkModeForms
                         ((ComboBox)control).SelectionLength = 0;
                 }));
 
-                // Fixes a glitch showing the Combo Backgroud white when the control is Disabled:
+                // Disabled ComboBoxes render a white edit field in dark mode; switching to
+                // DropDownList avoids the glitch. Remember the original style so it can be
+                // restored once the control is enabled again or the theme leaves dark mode,
+                // instead of permanently overwriting the user's choice.
+                var comboStatus = controlStatusStorage.GetControlStatusInfo(comboBox);
                 if (!control.Enabled && IsDarkMode)
                 {
-                    comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    if (comboBox.DropDownStyle != ComboBoxStyle.DropDownList &&
+                        comboStatus != null && comboStatus.OriginalDropDownStyle == null)
+                    {
+                        comboStatus.OriginalDropDownStyle = comboBox.DropDownStyle;
+                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    }
+                }
+                else if (comboStatus?.OriginalDropDownStyle is ComboBoxStyle originalStyle)
+                {
+                    comboBox.DropDownStyle = originalStyle;
+                    comboStatus.OriginalDropDownStyle = null;
                 }
 
                 // Apply Windows Color Mode:
@@ -1845,5 +1859,11 @@ namespace DarkModeForms
         /// whether the last theme applied was dark
         /// </summary>
         public bool LastThemeAppliedIsDark { get; set; }
+
+        /// <summary>
+        /// ComboBox only: the DropDownStyle in use before dark mode temporarily switched a
+        /// disabled control to DropDownList (to hide the white edit field), so it can be restored.
+        /// </summary>
+        public ComboBoxStyle? OriginalDropDownStyle { get; set; }
     }
 }
