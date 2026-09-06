@@ -852,11 +852,11 @@ namespace DarkModeForms
 
                 using (Brush B = new SolidBrush(label.ForeColor))
                 {
-                    //StringFormat sf = label.CreateStringFormat();
-                    MethodInfo mi = label.GetType().GetMethod("CreateStringFormat", BindingFlags.NonPublic | BindingFlags.Instance);
-                    StringFormat sf = mi.Invoke(label, new object[] { }) as StringFormat;
-
-                    e.Graphics.DrawString(label.Text, label.Font, B, new PointF(1, 0), sf);
+                    // Do NOT invoke the private Label.CreateStringFormat via reflection: it throws
+                    // a NullReferenceException on Label subclasses that don't declare it, on every
+                    // repaint of the disabled label. GenericDefault is equivalent here because the
+                    // text is drawn at a fixed PointF - there is no layout rectangle to align to.
+                    e.Graphics.DrawString(label.Text, label.Font, B, new PointF(1, 0), StringFormat.GenericDefault);
                 }
             }
         }
