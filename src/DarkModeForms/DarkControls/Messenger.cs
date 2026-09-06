@@ -164,7 +164,7 @@ namespace DarkModeForms
 						DialogResult = DialogResult.OK,
 						Text = ButtonTranslations["OK"],
 						Height = fontHeight + 10,
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					form.AcceptButton = CmdButtons[0];
 					// Copy standard MessageBox behavior by closing the dialog window
@@ -184,14 +184,14 @@ namespace DarkModeForms
 						DialogResult = DialogResult.OK,
 						Text = ButtonTranslations["OK"],
 						Height = fontHeight + 10,
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					CmdButtons.Add(new Button
 					{
 						Anchor = AnchorStyles.Top | AnchorStyles.Right,
 						DialogResult = DialogResult.Cancel,
 						Text = ButtonTranslations["Cancel"],
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					form.AcceptButton = CmdButtons[0];
 					form.CancelButton = CmdButtons[1];
@@ -268,7 +268,7 @@ namespace DarkModeForms
 						Anchor = AnchorStyles.Top | AnchorStyles.Right,
 						DialogResult = DialogResult.Retry,
 						Text = ButtonTranslations["Retry"],
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					CmdButtons.Add(new Button
 					{
