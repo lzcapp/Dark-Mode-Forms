@@ -7,16 +7,4 @@
 		<LangVersion>latest</LangVersion>
 	</PropertyGroup>
 
-  <!--<ItemGroup>
-    <Compile Update="SourceFiles\FlatComboBox.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Update="SourceFiles\FlatProgressBar.cs">
-      <SubType>Component</SubType>
-    </Compile>
-    <Compile Update="SourceFiles\FlatTabControl.cs">
-      <SubType>Component</SubType>
-    </Compile>
-  </ItemGroup>-->
-
 </Project>
