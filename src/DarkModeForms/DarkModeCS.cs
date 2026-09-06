@@ -265,6 +265,13 @@ namespace DarkModeForms
         private static readonly ControlStatusStorage controlStatusStorage = new ControlStatusStorage();
 
         /// <summary>
+        /// Stores the latest Paint handler bound by SetRoundBorders per Control, so repeated
+        /// calls replace the previous handler instead of stacking duplicates.
+        /// ConditionalWeakTable keeps no strong reference to the Control.
+        /// </summary>
+        private static readonly ConditionalWeakTable<Control, PaintEventHandler> roundBorderPaintHandlers = new ConditionalWeakTable<Control, PaintEventHandler>();
+
+        /// <summary>
         /// stores the event handler reference in order to prevent its uncontrolled multiple addition
         /// </summary>
         private static ControlEventHandler ownerFormControlAdded;
@@ -505,23 +512,8 @@ namespace DarkModeForms
             {
                 control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
                 control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        e.Graphics.Clear(control.Parent.BackColor);
-                        e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
-
-                        using (Brush B = new SolidBrush(control.ForeColor))
-                        {
-                            //StringFormat sf = lbl.CreateStringFormat();
-                            MethodInfo mi = lbl.GetType().GetMethod("CreateStringFormat", BindingFlags.NonPublic | BindingFlags.Instance);
-                            StringFormat sf = mi.Invoke(lbl, new object[] { }) as StringFormat;
-
-                            e.Graphics.DrawString(lbl.Text, lbl.Font, B, new PointF(1, 0), sf);
-                        }
-                    }
-                };
+                control.Paint -= LabelPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += LabelPaintHandler;
             }
             if (control is LinkLabel)
             {
@@ -590,18 +582,8 @@ namespace DarkModeForms
             {
                 control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
                 control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as GroupBox);
-                        using (Brush B = new SolidBrush(control.ForeColor))
-                        {
-                            e.Graphics.DrawString(radio.Text, radio.Font,
-                              B, new PointF(6, 0));
-                        }
-                    }
-                };
+                control.Paint -= GroupBoxPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += GroupBoxPaintHandler;
             }
             if (control is TableLayoutPanel)
             {
@@ -614,40 +596,8 @@ namespace DarkModeForms
                 var tab = control as TabControl;
                 tab.Appearance = TabAppearance.Normal;
                 tab.DrawMode = TabDrawMode.OwnerDrawFixed;
-                tab.DrawItem += (sender, e) =>
-                {
-                    //Draw the background of the main control
-                    using (SolidBrush backColor = new SolidBrush(tab.Parent.BackColor))
-                    {
-                        e.Graphics.FillRectangle(backColor, tab.ClientRectangle);
-                    }
-
-                    using (Brush tabBack = new SolidBrush(OScolors.Surface))
-                    {
-                        for (int i = 0; i < tab.TabPages.Count; i++)
-                        {
-                            TabPage tabPage = tab.TabPages[i];
-                            tabPage.BackColor = OScolors.Surface;
-                            tabPage.BorderStyle = BorderStyle.FixedSingle;
-
-                            tabPage.ControlAdded -= tabPageAdded; //prevent uncontrolled multiple addition
-                            tabPage.ControlAdded += tabPageAdded;
-
-                            var tabRect = tab.GetTabRect(i);
-
-                            bool IsSelected = (tab.SelectedIndex == i);
-                            if (IsSelected)
-                            {
-                                e.Graphics.FillRectangle(tabBack, tabRect);
-                                TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextActive);
-                            }
-                            else
-                            {
-                                TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextInactive);
-                            }
-                        }
-                    }
-                };
+                tab.DrawItem -= TabControlDrawItemHandler; //prevent uncontrolled multiple addition
+                tab.DrawItem += TabControlDrawItemHandler;
             }
             //if (control is FlatTabControl)
             //{
@@ -668,35 +618,15 @@ namespace DarkModeForms
             {
                 control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
                 control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as CheckBox);
-                        using (Brush B = new SolidBrush(control.ForeColor))
-                        {
-                            e.Graphics.DrawString(radio.Text, radio.Font,
-                              B, new PointF(16, 0));
-                        }
-                    }
-                };
+                control.Paint -= CheckBoxPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += CheckBoxPaintHandler;
             }
             if (control is RadioButton)
             {
                 control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
                 control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as RadioButton);
-                        using (Brush B = new SolidBrush(control.ForeColor))
-                        {
-                            e.Graphics.DrawString(radio.Text, radio.Font,
-                              B, new PointF(16, 0));
-                        }
-                    }
-                };
+                control.Paint -= RadioButtonPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += RadioButtonPaintHandler;
             }
             if (control is MenuStrip)
             {
@@ -760,49 +690,12 @@ namespace DarkModeForms
                     //lView.BackColor = OScolors.Surface;
                     if (lView.Items.Count > 0) lView.Items[0].UseItemStyleForSubItems = false;
                     lView.OwnerDraw = true;
-                    lView.DrawColumnHeader += (sender, e) =>
-                    {
-                        //e.DrawDefault = true;
-                        //e.DrawBackground();
-                        //e.DrawText();
-
-                        //Draws the Column's Text
-                        using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
-                        {
-                            using (SolidBrush foreBrush = new SolidBrush(OScolors.TextActive))
-                            {
-                                using (var sf = new StringFormat())
-                                {
-                                    sf.Alignment = StringAlignment.Center;
-                                    e.Graphics.FillRectangle(backBrush, e.Bounds);
-                                    e.Graphics.DrawString(e.Header.Text, lView.Font, foreBrush, e.Bounds, sf);
-                                }
-                            }
-                        }
-                    };
-                    lView.DrawItem += (sender, e) => { e.DrawDefault = true; };
-                    lView.DrawSubItem += (sender, e) =>
-                    {
-                        e.DrawDefault = true;
-
-                        //IntPtr headerControl = GetHeaderControl(lView);
-                        //IntPtr hdc = GetDC(headerControl);
-                        //Rectangle rc = new Rectangle(
-                        //  e.Bounds.Right, //<- Right instead of Left - offsets the rectangle
-                        //  e.Bounds.Top,
-                        //  e.Bounds.Width,
-                        //  e.Bounds.Height
-                        //);
-                        //rc.Width += 200;
-
-                        //using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
-                        //{
-                        //	e.Graphics.FillRectangle(backBrush, rc);
-                        //}
-
-                        //ReleaseDC(headerControl, hdc);
-
-                    };
+                    lView.DrawColumnHeader -= ListViewColumnHeaderDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawColumnHeader += ListViewColumnHeaderDrawHandler;
+                    lView.DrawItem -= ListViewItemDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawItem += ListViewItemDrawHandler;
+                    lView.DrawSubItem -= ListViewSubItemDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawSubItem += ListViewSubItemDrawHandler;
 
                     Mode = IsDarkMode ? "DarkMode_Explorer" : "ClearMode_Explorer";
                     SetWindowTheme(control.Handle, Mode, null);
@@ -839,30 +732,8 @@ namespace DarkModeForms
                 grid.GridColor = OScolors.Control;
 
                 //paint the bottom right corner where the scrollbars meet
-                grid.Paint += (sender, e) =>
-                {
-                    DataGridView dgv = sender as DataGridView;
-
-                    //get the value of dgv.HorizontalScrollBar protected property
-                    HScrollBar hs = (HScrollBar)typeof(DataGridView).GetProperty("HorizontalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
-                    if (hs.Visible)
-                    {
-                        //get the value of dgv.VerticalScrollBar protected property
-                        VScrollBar vs = (VScrollBar)typeof(DataGridView).GetProperty("VerticalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
-
-                        if (vs.Visible)
-                        {
-                            //only when both the scrollbars are visible, do the actual painting
-                            using (Brush brush = new SolidBrush(OScolors.SurfaceDark))
-                            {
-                                var w = vs.Size.Width;
-                                var h = hs.Size.Height;
-                                e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
-                                  dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
-                            }
-                        }
-                    }
-                };
+                grid.Paint -= DataGridViewCornerPaintHandler; //prevent uncontrolled multiple addition
+                grid.Paint += DataGridViewCornerPaintHandler;
 
                 grid.DefaultCellStyle.BackColor = OScolors.Surface;
                 grid.DefaultCellStyle.ForeColor = OScolors.TextActive;
@@ -904,6 +775,148 @@ namespace DarkModeForms
         private void tabPageAdded(object _s, ControlEventArgs _e)
         {
             ThemeControl(_e.Control);
+        }
+
+        /// <summary>Repaints the Text of a disabled Label with its ForeColor, which would otherwise stay black on dark backgrounds.</summary>
+        private void LabelPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is Label label && !label.Enabled && IsDarkMode)
+            {
+                e.Graphics.Clear(label.Parent.BackColor);
+                e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
+
+                using (Brush B = new SolidBrush(label.ForeColor))
+                {
+                    //StringFormat sf = label.CreateStringFormat();
+                    MethodInfo mi = label.GetType().GetMethod("CreateStringFormat", BindingFlags.NonPublic | BindingFlags.Instance);
+                    StringFormat sf = mi.Invoke(label, new object[] { }) as StringFormat;
+
+                    e.Graphics.DrawString(label.Text, label.Font, B, new PointF(1, 0), sf);
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled GroupBox with its ForeColor.</summary>
+        private void GroupBoxPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is GroupBox groupBox && !groupBox.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(groupBox.ForeColor))
+                {
+                    e.Graphics.DrawString(groupBox.Text, groupBox.Font, B, new PointF(6, 0));
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled CheckBox with its ForeColor.</summary>
+        private void CheckBoxPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is CheckBox checkBox && !checkBox.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(checkBox.ForeColor))
+                {
+                    e.Graphics.DrawString(checkBox.Text, checkBox.Font, B, new PointF(16, 0));
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled RadioButton with its ForeColor.</summary>
+        private void RadioButtonPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is RadioButton radioButton && !radioButton.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(radioButton.ForeColor))
+                {
+                    e.Graphics.DrawString(radioButton.Text, radioButton.Font, B, new PointF(16, 0));
+                }
+            }
+        }
+
+        /// <summary>Owner-draws TabControl tabs matching the current theme.</summary>
+        private void TabControlDrawItemHandler(object sender, DrawItemEventArgs e)
+        {
+            if (!(sender is TabControl tab)) return;
+
+            //Draw the background of the main control
+            using (SolidBrush backColor = new SolidBrush(tab.Parent.BackColor))
+            {
+                e.Graphics.FillRectangle(backColor, tab.ClientRectangle);
+            }
+
+            using (Brush tabBack = new SolidBrush(OScolors.Surface))
+            {
+                for (int i = 0; i < tab.TabPages.Count; i++)
+                {
+                    TabPage tabPage = tab.TabPages[i];
+                    tabPage.BackColor = OScolors.Surface;
+                    tabPage.BorderStyle = BorderStyle.FixedSingle;
+
+                    tabPage.ControlAdded -= tabPageAdded; //prevent uncontrolled multiple addition
+                    tabPage.ControlAdded += tabPageAdded;
+
+                    var tabRect = tab.GetTabRect(i);
+
+                    bool IsSelected = (tab.SelectedIndex == i);
+                    if (IsSelected)
+                    {
+                        e.Graphics.FillRectangle(tabBack, tabRect);
+                        TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextActive);
+                    }
+                    else
+                    {
+                        TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextInactive);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Owner-draws the ListView column headers matching the current theme.</summary>
+        private void ListViewColumnHeaderDrawHandler(object sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
+            using (SolidBrush foreBrush = new SolidBrush(OScolors.TextActive))
+            using (var sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                e.Graphics.FillRectangle(backBrush, e.Bounds);
+                e.Graphics.DrawString(e.Header.Text, ((ListView)sender).Font, foreBrush, e.Bounds, sf);
+            }
+        }
+
+        private void ListViewItemDrawHandler(object sender, DrawListViewItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        private void ListViewSubItemDrawHandler(object sender, DrawListViewSubItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        /// <summary>Paints the bottom-right corner where the DataGridView scrollbars meet.</summary>
+        private void DataGridViewCornerPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (!(sender is DataGridView dgv)) return;
+
+            //get the value of dgv.HorizontalScrollBar protected property
+            HScrollBar hs = (HScrollBar)typeof(DataGridView).GetProperty("HorizontalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
+            if (hs.Visible)
+            {
+                //get the value of dgv.VerticalScrollBar protected property
+                VScrollBar vs = (VScrollBar)typeof(DataGridView).GetProperty("VerticalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
+
+                if (vs.Visible)
+                {
+                    //only when both the scrollbars are visible, do the actual painting
+                    using (Brush brush = new SolidBrush(OScolors.SurfaceDark))
+                    {
+                        var w = vs.Size.Width;
+                        var h = hs.Size.Height;
+                        e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
+                          dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1040,7 +1053,15 @@ namespace DarkModeForms
             {
                 _Control.GetType().GetProperty("BorderStyle")?.SetValue(_Control, BorderStyle.None);
                 _Control.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, _Control.Width, _Control.Height, Radius, Radius));
-                _Control.Paint += (sender, e) =>
+
+                // Replace any previously bound handler (with the old border parameters) instead of stacking duplicates
+                if (roundBorderPaintHandlers.TryGetValue(_Control, out PaintEventHandler previousHandler))
+                {
+                    _Control.Paint -= previousHandler;
+                    roundBorderPaintHandlers.Remove(_Control);
+                }
+
+                PaintEventHandler roundBorderPaintHandler = (sender, e) =>
                 {
                     //base.OnPaint(e);
                     Graphics graph = e.Graphics;
@@ -1088,6 +1109,8 @@ namespace DarkModeForms
                         }
                     }
                 };
+                roundBorderPaintHandlers.Add(_Control, roundBorderPaintHandler);
+                _Control.Paint += roundBorderPaintHandler;
             }
         }
 
