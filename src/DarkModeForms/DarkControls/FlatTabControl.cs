@@ -8,30 +8,72 @@ namespace DarkModeForms
 	{
 		#region Public Properties
 
+		private Color _lineColor = SystemColors.Highlight;
 		[Description("Color for a decorative line"), Category("Appearance")]
-		public Color LineColor { get; set; } = SystemColors.Highlight;
+		public Color LineColor
+		{
+			get => _lineColor;
+			set { if (_lineColor != value) { _lineColor = value; Invalidate(); } }
+		}
 
+		private Color _borderColor = SystemColors.ControlDark;
 		[Description("Color for all Borders"), Category("Appearance")]
-		public Color BorderColor { get; set; } = SystemColors.ControlDark;
+		public Color BorderColor
+		{
+			get => _borderColor;
+			set { if (_borderColor != value) { _borderColor = value; Invalidate(); } }
+		}
 
+		private Color _selectTabColor = SystemColors.ControlLight;
 		[Description("Back color for selected Tab"), Category("Appearance")]
-		public Color SelectTabColor { get; set; } = SystemColors.ControlLight;
+		public Color SelectTabColor
+		{
+			get => _selectTabColor;
+			set { if (_selectTabColor != value) { _selectTabColor = value; Invalidate(); } }
+		}
 
+		private Color _selectedForeColor = SystemColors.HighlightText;
 		[Description("Fore Color for Selected Tab"), Category("Appearance")]
-		public Color SelectedForeColor { get; set; } = SystemColors.HighlightText;
+		public Color SelectedForeColor
+		{
+			get => _selectedForeColor;
+			set { if (_selectedForeColor != value) { _selectedForeColor = value; Invalidate(); } }
+		}
 
+		private Color _tabColor = SystemColors.ControlLight;
 		[Description("Back Color for un-selected tabs"), Category("Appearance")]
-		public Color TabColor { get; set; } = SystemColors.ControlLight;
+		public Color TabColor
+		{
+			get => _tabColor;
+			set { if (_tabColor != value) { _tabColor = value; Invalidate(); } }
+		}
 
+		private Color _backColor = SystemColors.Control;
 		[Description("Background color for the whole control"), Category("Appearance"), Browsable(true)]
-		public override Color BackColor { get; set; } = SystemColors.Control;
+		public override Color BackColor
+		{
+			get => _backColor;
+			set { if (_backColor != value) { _backColor = value; Invalidate(); } }
+		}
 
+		private Color _foreColor = SystemColors.ControlText;
 		[Description("Fore Color for all Texts"), Category("Appearance")]
-		public override Color ForeColor { get; set; } = SystemColors.ControlText;
+		public override Color ForeColor
+		{
+			get => _foreColor;
+			set { if (_foreColor != value) { _foreColor = value; Invalidate(); } }
+		}
 
+		private bool _showTabCloseButton = true;
 		[Description("Shows a Close Button on each tab"), Category("Appearance")]
-		public bool ShowTabCloseButton { get; set; } = true;
+		public bool ShowTabCloseButton
+		{
+			get => _showTabCloseButton;
+			set { if (_showTabCloseButton != value) { _showTabCloseButton = value; Invalidate(); } }
+		}
 
+		// Runtime-only state updated inside the paint path - deliberately NOT invalidating,
+		// otherwise mouse moves over the tab would trigger a repaint storm.
 		[Description("Color for the Close Button on each tab"), Category("Appearance")]
 		public Color TabCloseColor { get; set; }
 
@@ -50,7 +92,12 @@ namespace DarkModeForms
 				PreRemoveTabPage = null;
 				this.DrawMode = TabDrawMode.OwnerDrawFixed;
 			}
-			catch { }
+			catch (Exception ex)
+			{
+				// Never hide a configuration failure: a half-initialized control is hard to
+				// debug. Log it and let the control come up with the base-class defaults.
+				System.Diagnostics.Debug.WriteLine("[FlatTabControl] constructor initialization failed: " + ex);
+			}
 		}
 
 		protected override void InitLayout()
@@ -161,15 +208,11 @@ namespace DarkModeForms
 					g.FillRectangle(bBackColor, ClientRectangle);
 				}
 
-				Region region = g.Clip;
-
 				for (int i = 0; i < TabCount; i++)
 				{
 					DrawTab(g, TabPages[i], i);
 					TabPages[i].BackColor = TabColor;
 				}
-
-				g.Clip = region;
 
 				using (Pen border = new Pen(BorderColor))
 				{
@@ -187,7 +230,12 @@ namespace DarkModeForms
 					}
 				}
 			}
-			catch { }
+			catch (Exception ex)
+			{
+				// Painting is invoked frequently; keep the control alive, but surface the
+				// failure in the debugger instead of rendering a silent white control.
+				System.Diagnostics.Debug.WriteLine("[FlatTabControl] DrawControl failed: " + ex);
+			}
 		}
 
 		internal void DrawTab(Graphics g, TabPage customTabPage, int nIndex)
