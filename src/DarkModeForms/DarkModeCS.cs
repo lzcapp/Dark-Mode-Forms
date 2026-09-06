@@ -257,7 +257,7 @@ namespace DarkModeForms
 
         #endregion Win32 API Declarations
 
-        #region Private Static Members
+        #region Private Members
 
         /// <summary>
         /// Stores additional info related to the Controls
@@ -271,20 +271,25 @@ namespace DarkModeForms
         /// </summary>
         private static readonly ConditionalWeakTable<Control, PaintEventHandler> roundBorderPaintHandlers = new ConditionalWeakTable<Control, PaintEventHandler>();
 
-        /// <summary>
-        /// stores the event handler reference in order to prevent its uncontrolled multiple addition
-        /// </summary>
-        private static ControlEventHandler ownerFormControlAdded;
+        // NOTE: these three handlers are INSTANCE fields (not static). Static handlers plus
+        // instance state (IsDarkMode) would mix them across every DarkModeCS instance, so with
+        // two or more forms each constructing its own DarkModeCS the events would end up bound
+        // to whichever instance ran last, and "-= handler" could no longer remove the closures.
 
         /// <summary>
         /// stores the event handler reference in order to prevent its uncontrolled multiple addition
         /// </summary>
-        private static EventHandler controlHandleCreated;
+        private ControlEventHandler? ownerFormControlAdded;
 
         /// <summary>
         /// stores the event handler reference in order to prevent its uncontrolled multiple addition
         /// </summary>
-        private static ControlEventHandler controlControlAdded;
+        private EventHandler? controlHandleCreated;
+
+        /// <summary>
+        /// stores the event handler reference in order to prevent its uncontrolled multiple addition
+        /// </summary>
+        private ControlEventHandler? controlControlAdded;
 
 
         private IntPtr originalWndProc;
