@@ -1275,7 +1275,7 @@ namespace DarkModeForms
 
         /// <summary>Attemps to apply Window's Dark Style to the Control and all its childs.</summary>
         /// <param name="control"></param>
-        private static void ApplySystemDarkTheme(Control control = null, bool IsDarkMode = true)
+        private static void ApplySystemDarkTheme(Control control, bool IsDarkMode = true)
         {
             /*
                   DWMWA_USE_IMMERSIVE_DARK_MODE:   https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
@@ -1446,7 +1446,7 @@ namespace DarkModeForms
     public class MyRenderer : ToolStripProfessionalRenderer
     {
         public bool ColorizeIcons { get; set; } = true;
-        public OSThemeColors MyColors { get; set; } //<- Your Custom Colors Colection
+        public OSThemeColors MyColors { get; set; } = new OSThemeColors(); //<- Your Custom Colors Colection
 
         public MyRenderer(ProfessionalColorTable table, bool pColorizeIcons = true) : base(table)
         {
@@ -1777,9 +1777,9 @@ namespace DarkModeForms
         /// Gets the additional info associated with a Control
         /// </summary>
         /// <returns>a ControlStatusInfo object if the control has been already processed or marked for exclusion, null otherwise</returns>
-        public ControlStatusInfo GetControlStatusInfo(Control control)
+        public ControlStatusInfo? GetControlStatusInfo(Control control)
         {
-            _controlsProcessed.TryGetValue(control, out ControlStatusInfo info);
+            _controlsProcessed.TryGetValue(control, out ControlStatusInfo? info);
             return info;
         }
 
