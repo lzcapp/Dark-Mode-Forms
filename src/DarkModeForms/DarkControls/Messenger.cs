@@ -18,7 +18,7 @@ namespace DarkModeForms
 	{
 		#region Events
 		/// <summary>Manejador de Eventos para los Click en Botones</summary>
-		private static Action<object, ValidateEventArgs> ValidateControlsHandler;
+		private static Action<object, ValidateEventArgs>? ValidateControlsHandler;
 
 		/// <summary>Validates all Controls and allows to Cancel the changes.</summary>
 		public static event Action<object, ValidateEventArgs> ValidateControls
@@ -110,7 +110,7 @@ namespace DarkModeForms
 		public static DialogResult MessageBox(
 			string Message, string title, MsgIcon Icon,
 			MessageBoxButtons buttons = MessageBoxButtons.OK, bool pIsDarkMode = true,
-			MessageBoxDefaultButton defaultButton = MessageBoxDefaultButton.Button1, Form owner = null)
+			MessageBoxDefaultButton defaultButton = MessageBoxDefaultButton.Button1, Form? owner = null)
 		{
 			Form form = new Form
 			{
@@ -1144,7 +1144,7 @@ namespace DarkModeForms
 		{
 		}
 
-		public KeyValue(string pKey, string pValue, ValueTypes pType = 0, List<KeyValue> pDataSet = null)
+		public KeyValue(string pKey, string pValue, ValueTypes pType = 0, List<KeyValue>? pDataSet = null)
 		{
 			Key = pKey;
 			Value = pValue;
@@ -1194,7 +1194,7 @@ namespace DarkModeForms
 		public ValueTypes ValueType { get; set; } = ValueTypes.String;
 
 		/// <summary>[OPTIONAL] Data for when 'ValueType' is 'Dynamic'.</summary>
-		public List<KeyValue> DataSet { get; set; }
+		public List<KeyValue>? DataSet { get; set; }
 
 		/// <summary>[OPTIONAL] If this is not Empty, an Error icon will show next to the control.</summary>
 		public string ErrorText { get; set; } = string.Empty;
