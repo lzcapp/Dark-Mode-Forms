@@ -1270,7 +1270,7 @@ namespace DarkModeForms
 		public string Name { get; set; }
 		public string Base64Data { get; set; }
 
-		public Image Image
+		public Image? Image
 		{
 			get
 			{
@@ -1313,9 +1313,9 @@ namespace DarkModeForms
 
 		/// <summary>Returns the Image of the desired Icon, if exists in the Colection.</summary>
 		/// <param name="pName">Name of the Icon to look for.</param>
-		public Image GetIcon(string pName)
+		public Image? GetIcon(string pName)
 		{
-			Image _ret = null;
+			Image? _ret = null;
 			if (_Icons != null && _Icons.Count > 0)
 			{
 				var Found = _Icons.Find(x => x.Name == pName);
@@ -1327,7 +1327,7 @@ namespace DarkModeForms
 			return _ret;
 		}
 
-		public Image GetIcon(MsgIcon pIcon) => GetIcon(pIcon.ToString());
+		public Image? GetIcon(MsgIcon pIcon) => GetIcon(pIcon.ToString());
 
 		/// <summary>Adds a new Image to the Collection.</summary>
 		/// <param name="pName">NAme of the Image</param>

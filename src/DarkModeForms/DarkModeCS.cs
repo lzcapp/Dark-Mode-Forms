@@ -212,18 +212,6 @@ namespace DarkModeForms
           int nHeightEllipse // width of ellipse
         );
 
-        [DllImport("user32")]
-        private static extern IntPtr GetDC(IntPtr hwnd);
-
-        [DllImport("user32")]
-        private static extern IntPtr ReleaseDC(IntPtr hwnd, IntPtr hdc);
-
-        private static IntPtr GetHeaderControl(ListView list)
-        {
-            const int LVM_GETHEADER = 0x1000 + 31;
-            return SendMessage(list.Handle, LVM_GETHEADER, IntPtr.Zero, "");
-        }
-
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate IntPtr WndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
@@ -243,12 +231,6 @@ namespace DarkModeForms
 
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
         private static extern IntPtr SetWindowLongPtr64(HandleRef hWnd, int nIndex, IntPtr dwNewLong);
-        //		If that doesn't work, the following signature can be used alternatively.
-        [DllImport("user32.dll")]
-        static extern int SetWindowLong(IntPtr hWnd, int nIndex, uint dwNewLong);
-
-        //[DllImport("user32.dll", SetLastError = true)]
-        //private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
 
         [DllImport("user32.dll", SetLastError = true)]
