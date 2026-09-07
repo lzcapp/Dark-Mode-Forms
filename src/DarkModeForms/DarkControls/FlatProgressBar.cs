@@ -52,7 +52,7 @@ namespace DarkModeForms
 			// NOTE: never dispose e.Graphics - it is owned by the framework (PaintEventArgs).
 		}
 
-		public int Minimum
+		public new int Minimum
 		{
 			get
 			{
@@ -86,7 +86,7 @@ namespace DarkModeForms
 			}
 		}
 
-		public int Maximum
+		public new int Maximum
 		{
 			get
 			{
@@ -114,7 +114,7 @@ namespace DarkModeForms
 			}
 		}
 
-		public int Value
+		public new int Value
 		{
 			get
 			{
