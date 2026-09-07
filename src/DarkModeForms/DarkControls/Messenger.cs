@@ -18,7 +18,7 @@ namespace DarkModeForms
 	{
 		#region Events
 		/// <summary>Manejador de Eventos para los Click en Botones</summary>
-		private static Action<object, ValidateEventArgs> ValidateControlsHandler;
+		private static Action<object, ValidateEventArgs>? ValidateControlsHandler;
 
 		/// <summary>Validates all Controls and allows to Cancel the changes.</summary>
 		public static event Action<object, ValidateEventArgs> ValidateControls
@@ -110,7 +110,7 @@ namespace DarkModeForms
 		public static DialogResult MessageBox(
 			string Message, string title, MsgIcon Icon,
 			MessageBoxButtons buttons = MessageBoxButtons.OK, bool pIsDarkMode = true,
-			MessageBoxDefaultButton defaultButton = MessageBoxDefaultButton.Button1, Form owner = null)
+			MessageBoxDefaultButton defaultButton = MessageBoxDefaultButton.Button1, Form? owner = null)
 		{
 			Form form = new Form
 			{
@@ -164,7 +164,7 @@ namespace DarkModeForms
 						DialogResult = DialogResult.OK,
 						Text = ButtonTranslations["OK"],
 						Height = fontHeight + 10,
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					form.AcceptButton = CmdButtons[0];
 					// Copy standard MessageBox behavior by closing the dialog window
@@ -184,14 +184,14 @@ namespace DarkModeForms
 						DialogResult = DialogResult.OK,
 						Text = ButtonTranslations["OK"],
 						Height = fontHeight + 10,
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					CmdButtons.Add(new Button
 					{
 						Anchor = AnchorStyles.Top | AnchorStyles.Right,
 						DialogResult = DialogResult.Cancel,
 						Text = ButtonTranslations["Cancel"],
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					form.AcceptButton = CmdButtons[0];
 					form.CancelButton = CmdButtons[1];
@@ -268,7 +268,7 @@ namespace DarkModeForms
 						Anchor = AnchorStyles.Top | AnchorStyles.Right,
 						DialogResult = DialogResult.Retry,
 						Text = ButtonTranslations["Retry"],
-						FlatStyle = FlatStyle.System
+						FlatStyle = FlatStyle.Standard
 					});
 					CmdButtons.Add(new Button
 					{
@@ -410,7 +410,13 @@ namespace DarkModeForms
 			#endregion
 
 
-			return form.ShowDialog();
+			DialogResult result = form.ShowDialog();
+			// The dialog is closed at this point; dispose it so its window handle and the
+			// DarkModeCS window-procedure hooks are released instead of waiting for the GC.
+			// Stop pending debounce timers first: they would fire against disposed controls.
+			StopPendingTimers();
+			form.Dispose();
+			return result;
 		}
 
 		#endregion MessageBox
@@ -947,7 +953,13 @@ namespace DarkModeForms
 				}
 			};
 
-			return form.ShowDialog();
+			DialogResult result = form.ShowDialog();
+			// The dialog is closed at this point; dispose it so its window handle and the
+			// DarkModeCS window-procedure hooks are released instead of waiting for the GC.
+			// Stop pending debounce timers first: they would fire against disposed controls.
+			StopPendingTimers();
+			form.Dispose();
+			return result;
 		}
 
 		#endregion InputBox
@@ -979,6 +991,25 @@ namespace DarkModeForms
 			};
 			timer.Start();
 			timers.Add(control, timer);
+		}
+
+		/// <summary>
+		/// Stops and releases every pending debounce timer. Call before disposing a dialog:
+		/// a timer that fired after its target controls were disposed would crash the app.
+		/// </summary>
+		private static void StopPendingTimers()
+		{
+			if (timers == null)
+			{
+				return;
+			}
+
+			foreach (Timer timer in timers.Values)
+			{
+				timer.Stop();
+				timer.Dispose();
+			}
+			timers.Clear();
 		}
 
 		/// <summary>Returns the Current Language ID of the PC.</summary>
@@ -1113,7 +1144,7 @@ namespace DarkModeForms
 		{
 		}
 
-		public KeyValue(string pKey, string pValue, ValueTypes pType = 0, List<KeyValue> pDataSet = null)
+		public KeyValue(string pKey, string pValue, ValueTypes pType = 0, List<KeyValue>? pDataSet = null)
 		{
 			Key = pKey;
 			Value = pValue;
@@ -1163,7 +1194,7 @@ namespace DarkModeForms
 		public ValueTypes ValueType { get; set; } = ValueTypes.String;
 
 		/// <summary>[OPTIONAL] Data for when 'ValueType' is 'Dynamic'.</summary>
-		public List<KeyValue> DataSet { get; set; }
+		public List<KeyValue>? DataSet { get; set; }
 
 		/// <summary>[OPTIONAL] If this is not Empty, an Error icon will show next to the control.</summary>
 		public string ErrorText { get; set; } = string.Empty;
@@ -1239,7 +1270,7 @@ namespace DarkModeForms
 		public string Name { get; set; }
 		public string Base64Data { get; set; }
 
-		public Image Image
+		public Image? Image
 		{
 			get
 			{
@@ -1282,9 +1313,9 @@ namespace DarkModeForms
 
 		/// <summary>Returns the Image of the desired Icon, if exists in the Colection.</summary>
 		/// <param name="pName">Name of the Icon to look for.</param>
-		public Image GetIcon(string pName)
+		public Image? GetIcon(string pName)
 		{
-			Image _ret = null;
+			Image? _ret = null;
 			if (_Icons != null && _Icons.Count > 0)
 			{
 				var Found = _Icons.Find(x => x.Name == pName);
@@ -1296,7 +1327,7 @@ namespace DarkModeForms
 			return _ret;
 		}
 
-		public Image GetIcon(MsgIcon pIcon) => GetIcon(pIcon.ToString());
+		public Image? GetIcon(MsgIcon pIcon) => GetIcon(pIcon.ToString());
 
 		/// <summary>Adds a new Image to the Collection.</summary>
 		/// <param name="pName">NAme of the Image</param>

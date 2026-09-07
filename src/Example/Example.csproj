@@ -15,21 +15,13 @@
 		<AppConfig>App.config</AppConfig>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\DarkModeForms\DarkModeForms.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<Compile Update="Resource.Designer.cs">
-			<DesignTime>True</DesignTime>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>Resource.resx</DependentUpon>
-		</Compile>
+	<!-- MSB3822: non-string resources (icons/images in the .resx files) require this
+	     assembly at runtime when compiling the net48 target with the .NET SDK. -->
+	<ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+		<PackageReference Include="System.Resources.Extensions" Version="8.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<EmbeddedResource Update="Resource.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>Resource.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
+		<ProjectReference Include="..\DarkModeForms\DarkModeForms.csproj" />
 	</ItemGroup>
 </Project>

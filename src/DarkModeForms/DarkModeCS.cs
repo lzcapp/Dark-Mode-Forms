@@ -212,18 +212,6 @@ namespace DarkModeForms
           int nHeightEllipse // width of ellipse
         );
 
-        [DllImport("user32")]
-        private static extern IntPtr GetDC(IntPtr hwnd);
-
-        [DllImport("user32")]
-        private static extern IntPtr ReleaseDC(IntPtr hwnd, IntPtr hdc);
-
-        private static IntPtr GetHeaderControl(ListView list)
-        {
-            const int LVM_GETHEADER = 0x1000 + 31;
-            return SendMessage(list.Handle, LVM_GETHEADER, IntPtr.Zero, "");
-        }
-
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate IntPtr WndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
@@ -243,12 +231,6 @@ namespace DarkModeForms
 
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
         private static extern IntPtr SetWindowLongPtr64(HandleRef hWnd, int nIndex, IntPtr dwNewLong);
-        //		If that doesn't work, the following signature can be used alternatively.
-        [DllImport("user32.dll")]
-        static extern int SetWindowLong(IntPtr hWnd, int nIndex, uint dwNewLong);
-
-        //[DllImport("user32.dll", SetLastError = true)]
-        //private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -257,7 +239,7 @@ namespace DarkModeForms
 
         #endregion Win32 API Declarations
 
-        #region Private Static Members
+        #region Private Members
 
         /// <summary>
         /// Stores additional info related to the Controls
@@ -265,24 +247,36 @@ namespace DarkModeForms
         private static readonly ControlStatusStorage controlStatusStorage = new ControlStatusStorage();
 
         /// <summary>
-        /// stores the event handler reference in order to prevent its uncontrolled multiple addition
+        /// Stores the latest Paint handler bound by SetRoundBorders per Control, so repeated
+        /// calls replace the previous handler instead of stacking duplicates.
+        /// ConditionalWeakTable keeps no strong reference to the Control.
         /// </summary>
-        private static ControlEventHandler ownerFormControlAdded;
+        private static readonly ConditionalWeakTable<Control, PaintEventHandler> roundBorderPaintHandlers = new ConditionalWeakTable<Control, PaintEventHandler>();
+
+        // NOTE: these three handlers are INSTANCE fields (not static). Static handlers plus
+        // instance state (IsDarkMode) would mix them across every DarkModeCS instance, so with
+        // two or more forms each constructing its own DarkModeCS the events would end up bound
+        // to whichever instance ran last, and "-= handler" could no longer remove the closures.
 
         /// <summary>
         /// stores the event handler reference in order to prevent its uncontrolled multiple addition
         /// </summary>
-        private static EventHandler controlHandleCreated;
+        private ControlEventHandler? ownerFormControlAdded;
 
         /// <summary>
         /// stores the event handler reference in order to prevent its uncontrolled multiple addition
         /// </summary>
-        private static ControlEventHandler controlControlAdded;
+        private EventHandler? controlHandleCreated;
+
+        /// <summary>
+        /// stores the event handler reference in order to prevent its uncontrolled multiple addition
+        /// </summary>
+        private ControlEventHandler? controlControlAdded;
 
 
         private IntPtr originalWndProc;
+        private IntPtr subclassedHandle;
         private WndProc newWndProcDelegate;
-        private IntPtr formHandle;
         private bool applyingTheme; // Flag to prevent recursion
         private bool isFormLoaded = false;
         #endregion
@@ -356,21 +350,78 @@ namespace DarkModeForms
             ColorizeIcons = _ColorizeIcons;
             RoundedPanels = _RoundedPanels;
             ApplyColorMode();
-            if (originalWndProc == IntPtr.Zero)
+
+            // Subclass the Form's window procedure so system theme changes (WM_SETTINGSCHANGE)
+            // reach us. If the Form handle was already created (e.g. accessed before this call),
+            // HandleCreated will never fire again, so subclass immediately in that case.
+            _Form.HandleCreated += FormHandleCreated;
+            _Form.Disposed += FormDisposed;
+            if (_Form.IsHandleCreated)
             {
-                _Form.HandleCreated += (sender, e) =>
-                {
-                    HandleRef handleRef = new HandleRef(_Form, _Form.Handle);
-                    newWndProcDelegate = CustomWndProc;
-                    originalWndProc = SetWindowLongPtr(handleRef, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(newWndProcDelegate));
-                };
+                SubclassWindowProc();
             }
+
             // This Fires after the normal 'Form_Load' event
             _Form.Load += (sender, e) =>
             {
                 ApplyTheme();
                 isFormLoaded = true;
             };
+        }
+
+        /// <summary>Raised whenever the Form's window handle is created or recreated.</summary>
+        private void FormHandleCreated(object sender, EventArgs e)
+        {
+            SubclassWindowProc();
+        }
+
+        /// <summary>Substitutes the Form's window procedure with <see cref="CustomWndProc"/>,
+        /// keeping a reference to the previous one so it can be restored later.</summary>
+        private void SubclassWindowProc()
+        {
+            IntPtr handle = OwnerForm.Handle;
+            if (originalWndProc != IntPtr.Zero && subclassedHandle == handle)
+            {
+                // This very handle is already subclassed (e.g. HandleCreated fired again for it)
+                return;
+            }
+
+            if (originalWndProc != IntPtr.Zero)
+            {
+                // The handle was recreated: try to restore the previous window procedure first.
+                // Best effort - the old handle may already be destroyed, in which case the call is a no-op.
+                RestoreWindowProc();
+            }
+
+            newWndProcDelegate = CustomWndProc;
+            originalWndProc = SetWindowLongPtr(
+              new HandleRef(OwnerForm, handle),
+              GWLP_WNDPROC,
+              Marshal.GetFunctionPointerForDelegate(newWndProcDelegate));
+            subclassedHandle = handle;
+        }
+
+        /// <summary>Restores the original window procedure and releases all references.</summary>
+        private void RestoreWindowProc()
+        {
+            if (originalWndProc != IntPtr.Zero && subclassedHandle != IntPtr.Zero)
+            {
+                SetWindowLongPtr(
+                  new HandleRef(OwnerForm, subclassedHandle),
+                  GWLP_WNDPROC,
+                  originalWndProc);
+            }
+            originalWndProc = IntPtr.Zero;
+            subclassedHandle = IntPtr.Zero;
+            newWndProcDelegate = null;
+        }
+
+        /// <summary>Raised when the Form is disposed: restore the window procedure and unhook events.</summary>
+        private void FormDisposed(object sender, EventArgs e)
+        {
+            RestoreWindowProc();
+            OwnerForm.HandleCreated -= FormHandleCreated;
+            OwnerForm.Disposed -= FormDisposed;
         }
         private void ApplyColorMode()
         {
@@ -445,7 +496,10 @@ namespace DarkModeForms
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message + ex.StackTrace, "ERROR", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // A library must not pop modal dialogs from its internals: ApplyTheme can run
+                // during Load, on the WM_SETTINGSCHANGE pump or in designer scenarios where a
+                // blocking MessageBox would deadlock or crash the host. Log instead.
+                System.Diagnostics.Debug.WriteLine("[DarkModeCS] ApplyTheme failed: " + ex);
             }
         }
 
@@ -482,6 +536,9 @@ namespace DarkModeForms
 
             if (controlHandleCreated == null) controlHandleCreated = (sender, e) =>
             {
+                // Respect ExcludeFromProcessing: a control excluded after ThemeControl
+                // subscribed this handler must not be themed when its handle is (re)created.
+                if (controlStatusStorage.GetControlStatusInfo((Control)sender)?.IsExcluded == true) return;
                 ApplySystemDarkTheme((Control)sender, IsDarkMode);
             };
             control.HandleCreated -= controlHandleCreated; //prevent uncontrolled multiple addition
@@ -497,41 +554,28 @@ namespace DarkModeForms
             string Mode = IsDarkMode ? "DarkMode_Explorer" : "ClearMode_Explorer";
             SetWindowTheme(control.Handle, Mode, null); //<- Attempts to apply Dark Mode using Win32 API if available.
 
-            control.GetType().GetProperty("BackColor")?.SetValue(control, OScolors.Control);
-            control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
+            control.BackColor = OScolors.Control;
+            control.ForeColor = OScolors.TextActive;
 
             /* Here we Finetune individual Controls  */
             if (control is Label lbl)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        e.Graphics.Clear(control.Parent.BackColor);
-                        e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
-
-                        using (Brush B = new SolidBrush(control.ForeColor))
-                        {
-                            //StringFormat sf = lbl.CreateStringFormat();
-                            MethodInfo mi = lbl.GetType().GetMethod("CreateStringFormat", BindingFlags.NonPublic | BindingFlags.Instance);
-                            StringFormat sf = mi.Invoke(lbl, new object[] { }) as StringFormat;
-
-                            e.Graphics.DrawString(lbl.Text, lbl.Font, B, new PointF(1, 0), sf);
-                        }
-                    }
-                };
+                // ThemeControl is public and can be called on a standalone control whose
+                // Parent is null; fall back to the current color in that case.
+                lbl.BackColor = lbl.Parent?.BackColor ?? lbl.BackColor;
+                lbl.BorderStyle = BorderStyle.None;
+                control.Paint -= LabelPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += LabelPaintHandler;
             }
-            if (control is LinkLabel)
+            if (control is LinkLabel linkLabel)
             {
-                control.GetType().GetProperty("LinkColor")?.SetValue(control, OScolors.AccentLight);
-                control.GetType().GetProperty("VisitedLinkColor")?.SetValue(control, OScolors.Primary);
+                linkLabel.LinkColor = OScolors.AccentLight;
+                linkLabel.VisitedLinkColor = OScolors.Primary;
             }
-            if (control is TextBox)
+            if (control is TextBox textBox)
             {
                 //SetRoundBorders(tb, 4, OScolors.SurfaceDark, 1);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BStyle);
+                textBox.BorderStyle = BStyle;
             }
             if (control is NumericUpDown)
             {
@@ -562,10 +606,24 @@ namespace DarkModeForms
                         ((ComboBox)control).SelectionLength = 0;
                 }));
 
-                // Fixes a glitch showing the Combo Backgroud white when the control is Disabled:
+                // Disabled ComboBoxes render a white edit field in dark mode; switching to
+                // DropDownList avoids the glitch. Remember the original style so it can be
+                // restored once the control is enabled again or the theme leaves dark mode,
+                // instead of permanently overwriting the user's choice.
+                var comboStatus = controlStatusStorage.GetControlStatusInfo(comboBox);
                 if (!control.Enabled && IsDarkMode)
                 {
-                    comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    if (comboBox.DropDownStyle != ComboBoxStyle.DropDownList &&
+                        comboStatus != null && comboStatus.OriginalDropDownStyle == null)
+                    {
+                        comboStatus.OriginalDropDownStyle = comboBox.DropDownStyle;
+                        comboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+                    }
+                }
+                else if (comboStatus?.OriginalDropDownStyle is ComboBoxStyle originalStyle)
+                {
+                    comboBox.DropDownStyle = originalStyle;
+                    comboStatus.OriginalDropDownStyle = null;
                 }
 
                 // Apply Windows Color Mode:
@@ -578,7 +636,10 @@ namespace DarkModeForms
                 // Process the panel within the container
                 panel.BackColor = OScolors.Background;
                 panel.BorderStyle = BorderStyle.None;
-                if (!(panel.Parent is TabControl) || !(panel.Parent is TableLayoutPanel))
+                // A single parent cannot be both types; the old "||" form made this
+                // condition always true, so every Panel got rounded corners even inside
+                // TabControls/TableLayoutPanels where the region hack misbehaves.
+                if (!(panel.Parent is TabControl) && !(panel.Parent is TableLayoutPanel))
                 {
                     if (RoundedPanels)
                     {
@@ -586,67 +647,26 @@ namespace DarkModeForms
                     }
                 }
             }
-            if (control is GroupBox)
+            if (control is GroupBox groupBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as GroupBox);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(6, 0));
-                    }
-                };
+                groupBox.BackColor = groupBox.Parent?.BackColor ?? groupBox.BackColor;
+                groupBox.ForeColor = OScolors.TextActive;
+                control.Paint -= GroupBoxPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += GroupBoxPaintHandler;
             }
-            if (control is TableLayoutPanel)
+            if (control is TableLayoutPanel tableLayoutPanel)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextInactive);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
+                tableLayoutPanel.BackColor = tableLayoutPanel.Parent?.BackColor ?? tableLayoutPanel.BackColor;
+                tableLayoutPanel.ForeColor = OScolors.TextInactive;
+                tableLayoutPanel.BorderStyle = BorderStyle.None;
             }
             if (control is TabControl)
             {
                 var tab = control as TabControl;
                 tab.Appearance = TabAppearance.Normal;
                 tab.DrawMode = TabDrawMode.OwnerDrawFixed;
-                tab.DrawItem += (sender, e) =>
-                {
-                    //Draw the background of the main control
-                    using (SolidBrush backColor = new SolidBrush(tab.Parent.BackColor))
-                    {
-                        e.Graphics.FillRectangle(backColor, tab.ClientRectangle);
-                    }
-
-                    using (Brush tabBack = new SolidBrush(OScolors.Surface))
-                    {
-                        for (int i = 0; i < tab.TabPages.Count; i++)
-                        {
-                            TabPage tabPage = tab.TabPages[i];
-                            tabPage.BackColor = OScolors.Surface;
-                            tabPage.BorderStyle = BorderStyle.FixedSingle;
-
-                            tabPage.ControlAdded -= tabPageAdded; //prevent uncontrolled multiple addition
-                            tabPage.ControlAdded += tabPageAdded;
-
-                            var tabRect = tab.GetTabRect(i);
-
-                            bool IsSelected = (tab.SelectedIndex == i);
-                            if (IsSelected)
-                            {
-                                e.Graphics.FillRectangle(tabBack, tabRect);
-                                TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextActive);
-                            }
-                            else
-                            {
-                                TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextInactive);
-                            }
-                        }
-                    }
-                };
+                tab.DrawItem -= TabControlDrawItemHandler; //prevent uncontrolled multiple addition
+                tab.DrawItem += TabControlDrawItemHandler;
             }
             //if (control is FlatTabControl)
             //{
@@ -657,43 +677,25 @@ namespace DarkModeForms
             //	control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextInactive);
             //	control.GetType().GetProperty("LineColor")?.SetValue(control, OScolors.Background);
             //}
-            if (control is PictureBox)
+            if (control is PictureBox pictureBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.GetType().GetProperty("ForeColor")?.SetValue(control, OScolors.TextActive);
-                control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
+                pictureBox.BackColor = pictureBox.Parent?.BackColor ?? pictureBox.BackColor;
+                pictureBox.ForeColor = OScolors.TextActive;
+                pictureBox.BorderStyle = BorderStyle.None;
             }
-            if (control is CheckBox)
+            if (control is CheckBox checkBox)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as CheckBox);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(16, 0));
-                    }
-                };
+                checkBox.BackColor = checkBox.Parent?.BackColor ?? checkBox.BackColor;
+                checkBox.ForeColor = checkBox.Enabled ? OScolors.TextActive : OScolors.TextInactive;
+                control.Paint -= CheckBoxPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += CheckBoxPaintHandler;
             }
-            if (control is RadioButton)
+            if (control is RadioButton radioButton)
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
-                control.ForeColor = control.Enabled ? OScolors.TextActive : OScolors.TextInactive;
-                control.Paint += (sender, e) =>
-                {
-                    if (control.Enabled == false && IsDarkMode)
-                    {
-                        var radio = (sender as RadioButton);
-                        Brush B = new SolidBrush(control.ForeColor);
-
-                        e.Graphics.DrawString(radio.Text, radio.Font,
-                          B, new PointF(16, 0));
-                    }
-                };
+                radioButton.BackColor = radioButton.Parent?.BackColor ?? radioButton.BackColor;
+                radioButton.ForeColor = radioButton.Enabled ? OScolors.TextActive : OScolors.TextInactive;
+                control.Paint -= RadioButtonPaintHandler; //prevent uncontrolled multiple addition
+                control.Paint += RadioButtonPaintHandler;
             }
             if (control is MenuStrip)
             {
@@ -708,9 +710,9 @@ namespace DarkModeForms
                 (control as ToolStrip).RenderMode = ToolStripRenderMode.Professional;
                 (control as ToolStrip).Renderer = new MyRenderer(new CustomColorTable(OScolors), ColorizeIcons) { MyColors = OScolors };
             }
-            if (control is ToolStripPanel) //<- empty area around ToolStrip
+            if (control is ToolStripPanel toolStripPanel) //<- empty area around ToolStrip
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, control.Parent.BackColor);
+                toolStripPanel.BackColor = toolStripPanel.Parent?.BackColor ?? toolStripPanel.BackColor;
             }
             if (control is ToolStripDropDown)
             {
@@ -729,9 +731,9 @@ namespace DarkModeForms
                 (control as ContextMenuStrip).Opening -= Tsdd_Opening; //just to make sure
                 (control as ContextMenuStrip).Opening += Tsdd_Opening;
             }
-            if (control is MdiClient) //<- empty area of MDI container window
+            if (control is MdiClient mdiClient) //<- empty area of MDI container window
             {
-                control.GetType().GetProperty("BackColor")?.SetValue(control, OScolors.Surface);
+                mdiClient.BackColor = OScolors.Surface;
             }
             if (control is PropertyGrid)
             {
@@ -757,49 +759,12 @@ namespace DarkModeForms
                     //lView.BackColor = OScolors.Surface;
                     if (lView.Items.Count > 0) lView.Items[0].UseItemStyleForSubItems = false;
                     lView.OwnerDraw = true;
-                    lView.DrawColumnHeader += (sender, e) =>
-                    {
-                        //e.DrawDefault = true;
-                        //e.DrawBackground();
-                        //e.DrawText();
-
-                        //Draws the Column's Text
-                        using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
-                        {
-                            using (SolidBrush foreBrush = new SolidBrush(OScolors.TextActive))
-                            {
-                                using (var sf = new StringFormat())
-                                {
-                                    sf.Alignment = StringAlignment.Center;
-                                    e.Graphics.FillRectangle(backBrush, e.Bounds);
-                                    e.Graphics.DrawString(e.Header.Text, lView.Font, foreBrush, e.Bounds, sf);
-                                }
-                            }
-                        }
-                    };
-                    lView.DrawItem += (sender, e) => { e.DrawDefault = true; };
-                    lView.DrawSubItem += (sender, e) =>
-                    {
-                        e.DrawDefault = true;
-
-                        //IntPtr headerControl = GetHeaderControl(lView);
-                        //IntPtr hdc = GetDC(headerControl);
-                        //Rectangle rc = new Rectangle(
-                        //  e.Bounds.Right, //<- Right instead of Left - offsets the rectangle
-                        //  e.Bounds.Top,
-                        //  e.Bounds.Width,
-                        //  e.Bounds.Height
-                        //);
-                        //rc.Width += 200;
-
-                        //using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
-                        //{
-                        //	e.Graphics.FillRectangle(backBrush, rc);
-                        //}
-
-                        //ReleaseDC(headerControl, hdc);
-
-                    };
+                    lView.DrawColumnHeader -= ListViewColumnHeaderDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawColumnHeader += ListViewColumnHeaderDrawHandler;
+                    lView.DrawItem -= ListViewItemDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawItem += ListViewItemDrawHandler;
+                    lView.DrawSubItem -= ListViewSubItemDrawHandler; //prevent uncontrolled multiple addition
+                    lView.DrawSubItem += ListViewSubItemDrawHandler;
 
                     Mode = IsDarkMode ? "DarkMode_Explorer" : "ClearMode_Explorer";
                     SetWindowTheme(control.Handle, Mode, null);
@@ -808,24 +773,10 @@ namespace DarkModeForms
             }
             if (control is TreeView)
             {
+                // TreeView.BorderStyle was removed from .NET Core WinForms, so this stays
+                // reflection-based to keep the net48 behavior (borderless tree in dark mode)
+                // while compiling against both target frameworks.
                 control.GetType().GetProperty("BorderStyle")?.SetValue(control, BorderStyle.None);
-                //tree.DrawNode += (object? sender, DrawTreeNodeEventArgs e) =>
-                //{
-                //  if (e.Node.ImageIndex != -1)
-                //  {
-                //	Image image = tree.ImageList.Images[e.Node.ImageIndex];
-                //	using (Graphics g = Graphics.FromImage(image))
-                //	{
-                //	  g.InterpolationMode = InterpolationMode.HighQualityBilinear;
-                //	  g.CompositingQuality = CompositingQuality.HighQuality;
-                //	  g.SmoothingMode = SmoothingMode.HighQuality;
-
-                //	  g.DrawImage(DarkModeCS.ChangeToColor(image, OScolors.TextInactive), new Point(0,0));
-                //	}
-                //	tree.ImageList.Images[e.Node.ImageIndex] = image;
-                //  }
-                //  tree.Invalidate();
-                //};
             }
             if (control is DataGridView)
             {
@@ -836,28 +787,8 @@ namespace DarkModeForms
                 grid.GridColor = OScolors.Control;
 
                 //paint the bottom right corner where the scrollbars meet
-                grid.Paint += (sender, e) =>
-                {
-                    DataGridView dgv = sender as DataGridView;
-
-                    //get the value of dgv.HorizontalScrollBar protected property
-                    HScrollBar hs = (HScrollBar)typeof(DataGridView).GetProperty("HorizontalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
-                    if (hs.Visible)
-                    {
-                        //get the value of dgv.VerticalScrollBar protected property
-                        VScrollBar vs = (VScrollBar)typeof(DataGridView).GetProperty("VerticalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
-
-                        if (vs.Visible)
-                        {
-                            //only when both the scrollbars are visible, do the actual painting
-                            Brush brush = new SolidBrush(OScolors.SurfaceDark);
-                            var w = vs.Size.Width;
-                            var h = hs.Size.Height;
-                            e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
-                              dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
-                        }
-                    }
-                };
+                grid.Paint -= DataGridViewCornerPaintHandler; //prevent uncontrolled multiple addition
+                grid.Paint += DataGridViewCornerPaintHandler;
 
                 grid.DefaultCellStyle.BackColor = OScolors.Surface;
                 grid.DefaultCellStyle.ForeColor = OScolors.TextActive;
@@ -874,12 +805,12 @@ namespace DarkModeForms
             }
             if (control is RichTextBox richText)
             {
-                richText.BackColor = richText.Parent.BackColor;
+                richText.BackColor = richText.Parent?.BackColor ?? richText.BackColor;
                 richText.BorderStyle = BorderStyle.None;
             }
             if (control is FlowLayoutPanel flowLayout)
             {
-                flowLayout.BackColor = flowLayout.Parent.BackColor;
+                flowLayout.BackColor = flowLayout.Parent?.BackColor ?? flowLayout.BackColor;
                 flowLayout.BorderStyle = BorderStyle.None;
             }
 
@@ -899,6 +830,148 @@ namespace DarkModeForms
         private void tabPageAdded(object _s, ControlEventArgs _e)
         {
             ThemeControl(_e.Control);
+        }
+
+        /// <summary>Repaints the Text of a disabled Label with its ForeColor, which would otherwise stay black on dark backgrounds.</summary>
+        private void LabelPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is Label label && !label.Enabled && IsDarkMode)
+            {
+                e.Graphics.Clear(label.Parent.BackColor);
+                e.Graphics.SmoothingMode = SmoothingMode.HighQuality;
+
+                using (Brush B = new SolidBrush(label.ForeColor))
+                {
+                    // Do NOT invoke the private Label.CreateStringFormat via reflection: it throws
+                    // a NullReferenceException on Label subclasses that don't declare it, on every
+                    // repaint of the disabled label. GenericDefault is equivalent here because the
+                    // text is drawn at a fixed PointF - there is no layout rectangle to align to.
+                    e.Graphics.DrawString(label.Text, label.Font, B, new PointF(1, 0), StringFormat.GenericDefault);
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled GroupBox with its ForeColor.</summary>
+        private void GroupBoxPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is GroupBox groupBox && !groupBox.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(groupBox.ForeColor))
+                {
+                    e.Graphics.DrawString(groupBox.Text, groupBox.Font, B, new PointF(6, 0));
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled CheckBox with its ForeColor.</summary>
+        private void CheckBoxPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is CheckBox checkBox && !checkBox.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(checkBox.ForeColor))
+                {
+                    e.Graphics.DrawString(checkBox.Text, checkBox.Font, B, new PointF(16, 0));
+                }
+            }
+        }
+
+        /// <summary>Repaints the Text of a disabled RadioButton with its ForeColor.</summary>
+        private void RadioButtonPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (sender is RadioButton radioButton && !radioButton.Enabled && IsDarkMode)
+            {
+                using (Brush B = new SolidBrush(radioButton.ForeColor))
+                {
+                    e.Graphics.DrawString(radioButton.Text, radioButton.Font, B, new PointF(16, 0));
+                }
+            }
+        }
+
+        /// <summary>Owner-draws TabControl tabs matching the current theme.</summary>
+        private void TabControlDrawItemHandler(object sender, DrawItemEventArgs e)
+        {
+            if (!(sender is TabControl tab)) return;
+
+            //Draw the background of the main control
+            using (SolidBrush backColor = new SolidBrush(tab.Parent.BackColor))
+            {
+                e.Graphics.FillRectangle(backColor, tab.ClientRectangle);
+            }
+
+            using (Brush tabBack = new SolidBrush(OScolors.Surface))
+            {
+                for (int i = 0; i < tab.TabPages.Count; i++)
+                {
+                    TabPage tabPage = tab.TabPages[i];
+                    tabPage.BackColor = OScolors.Surface;
+                    tabPage.BorderStyle = BorderStyle.FixedSingle;
+
+                    tabPage.ControlAdded -= tabPageAdded; //prevent uncontrolled multiple addition
+                    tabPage.ControlAdded += tabPageAdded;
+
+                    var tabRect = tab.GetTabRect(i);
+
+                    bool IsSelected = (tab.SelectedIndex == i);
+                    if (IsSelected)
+                    {
+                        e.Graphics.FillRectangle(tabBack, tabRect);
+                        TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextActive);
+                    }
+                    else
+                    {
+                        TextRenderer.DrawText(e.Graphics, tabPage.Text, tabPage.Font, tabRect, OScolors.TextInactive);
+                    }
+                }
+            }
+        }
+
+        /// <summary>Owner-draws the ListView column headers matching the current theme.</summary>
+        private void ListViewColumnHeaderDrawHandler(object sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (SolidBrush backBrush = new SolidBrush(OScolors.ControlLight))
+            using (SolidBrush foreBrush = new SolidBrush(OScolors.TextActive))
+            using (var sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                e.Graphics.FillRectangle(backBrush, e.Bounds);
+                e.Graphics.DrawString(e.Header.Text, ((ListView)sender).Font, foreBrush, e.Bounds, sf);
+            }
+        }
+
+        private void ListViewItemDrawHandler(object sender, DrawListViewItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        private void ListViewSubItemDrawHandler(object sender, DrawListViewSubItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        /// <summary>Paints the bottom-right corner where the DataGridView scrollbars meet.</summary>
+        private void DataGridViewCornerPaintHandler(object sender, PaintEventArgs e)
+        {
+            if (!(sender is DataGridView dgv)) return;
+
+            //get the value of dgv.HorizontalScrollBar protected property
+            HScrollBar hs = (HScrollBar)typeof(DataGridView).GetProperty("HorizontalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
+            if (hs.Visible)
+            {
+                //get the value of dgv.VerticalScrollBar protected property
+                VScrollBar vs = (VScrollBar)typeof(DataGridView).GetProperty("VerticalScrollBar", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(dgv);
+
+                if (vs.Visible)
+                {
+                    //only when both the scrollbars are visible, do the actual painting
+                    using (Brush brush = new SolidBrush(OScolors.SurfaceDark))
+                    {
+                        var w = vs.Size.Width;
+                        var h = hs.Size.Height;
+                        e.Graphics.FillRectangle(brush, dgv.ClientRectangle.X + dgv.ClientRectangle.Width - w - 1,
+                          dgv.ClientRectangle.Y + dgv.ClientRectangle.Height - h - 1, w, h);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -940,14 +1013,15 @@ namespace DarkModeForms
                 //get the theme --> only if Windows 10 or newer
                 if (IsWindows10orGreater())
                 {
-                    var color = colors.ColorizationColor;
-
-                    var colorValue = long.Parse(color.ToString(), System.Globalization.NumberStyles.HexNumber);
+                    // ColorizationColor is in 0xAARRGGBB format (unlike COLORREF's 0x00BBGGRR).
+                    // Extract the components with plain bit math: parsing the value's decimal
+                    // string as hex (the previous implementation) corrupted every component.
+                    uint colorValue = colors.ColorizationColor;
 
                     var transparency = (colorValue >> 24) & 0xFF;
                     var red = (colorValue >> 16) & 0xFF;
                     var green = (colorValue >> 8) & 0xFF;
-                    var blue = (colorValue >> 0) & 0xFF;
+                    var blue = colorValue & 0xFF;
 
                     return Color.FromArgb((int)transparency, (int)red, (int)green, (int)blue);
                 }
@@ -972,13 +1046,14 @@ namespace DarkModeForms
             //get the theme --> only if Windows 10 or newer
             if (IsWindows10orGreater())
             {
-                var color = colors.ColorizationColor;
-
-                var colorValue = long.Parse(color.ToString(), System.Globalization.NumberStyles.HexNumber);
+                // ColorizationColor is in 0xAARRGGBB format (unlike COLORREF's 0x00BBGGRR).
+                // Extract the components with plain bit math: parsing the value's decimal
+                // string as hex (the previous implementation) corrupted every component.
+                uint colorValue = colors.ColorizationColor;
 
                 var red = (colorValue >> 16) & 0xFF;
                 var green = (colorValue >> 8) & 0xFF;
-                var blue = (colorValue >> 0) & 0xFF;
+                var blue = colorValue & 0xFF;
 
                 return Color.FromArgb(255, (int)red, (int)green, (int)blue);
             }
@@ -1033,9 +1108,19 @@ namespace DarkModeForms
 
             if (_Control != null)
             {
+                // SetRoundBorders accepts any Control and BorderStyle exists only on some of
+                // them (and not at all on .NET Core), so this single call stays reflection-based.
                 _Control.GetType().GetProperty("BorderStyle")?.SetValue(_Control, BorderStyle.None);
                 _Control.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, _Control.Width, _Control.Height, Radius, Radius));
-                _Control.Paint += (sender, e) =>
+
+                // Replace any previously bound handler (with the old border parameters) instead of stacking duplicates
+                if (roundBorderPaintHandlers.TryGetValue(_Control, out PaintEventHandler previousHandler))
+                {
+                    _Control.Paint -= previousHandler;
+                    roundBorderPaintHandlers.Remove(_Control);
+                }
+
+                PaintEventHandler roundBorderPaintHandler = (sender, e) =>
                 {
                     //base.OnPaint(e);
                     Graphics graph = e.Graphics;
@@ -1083,6 +1168,8 @@ namespace DarkModeForms
                         }
                     }
                 };
+                roundBorderPaintHandlers.Add(_Control, roundBorderPaintHandler);
+                _Control.Paint += roundBorderPaintHandler;
             }
         }
 
@@ -1120,7 +1207,20 @@ namespace DarkModeForms
             }
             return bmp2;
         }
-        public static Image ChangeToColor(Image bmp, Color c) => ChangeToColor((Bitmap)bmp, c);
+        public static Image ChangeToColor(Image bmp, Color c)
+        {
+            // A ToolStrip icon could be an Icon or a metafile, not necessarily a Bitmap:
+            // a hard cast would throw InvalidCastException during painting. Rasterize as a fallback.
+            if (bmp is Bitmap bitmap)
+            {
+                return ChangeToColor(bitmap, c);
+            }
+
+            using (Bitmap rasterized = new Bitmap(bmp))
+            {
+                return ChangeToColor(rasterized, c);
+            }
+        }
 
         #endregion Public Methods
 
@@ -1157,7 +1257,7 @@ namespace DarkModeForms
 
         /// <summary>Attemps to apply Window's Dark Style to the Control and all its childs.</summary>
         /// <param name="control"></param>
-        private static void ApplySystemDarkTheme(Control control = null, bool IsDarkMode = true)
+        private static void ApplySystemDarkTheme(Control control, bool IsDarkMode = true)
         {
             /*
                   DWMWA_USE_IMMERSIVE_DARK_MODE:   https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute
@@ -1196,24 +1296,33 @@ namespace DarkModeForms
 
         private static int WindowsVersion()
         {
-            //for .Net4.8 and Minor
-            int result;
+            // Parsing ProductName (e.g. splitting "Windows 11 Pro" on spaces) was fragile:
+            // "Windows Server 2022 Standard" yields "Server" and Windows 11's NT version is
+            // still 10.0, so use the dedicated CurrentMajorVersionNumber value instead
+            // (present since Windows 10), falling back to Environment.OSVersion otherwise.
             try
             {
-                var reg = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
-                string[] productName = reg.GetValue("ProductName").ToString().Split((char)32);
-                int.TryParse(productName[1], out result);
+                using (var reg = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion"))
+                {
+                    if (reg?.GetValue("CurrentMajorVersionNumber") is int currentMajor && currentMajor > 0)
+                    {
+                        return currentMajor;
+                    }
+                }
             }
             catch (Exception)
             {
-                OperatingSystem os = Environment.OSVersion;
-                result = os.Version.Major;
+                // fall through to Environment.OSVersion below
             }
 
-            return result;
-
-            //fixed .Net6
-            //return System.Environment.OSVersion.Version.Major;
+            try
+            {
+                return Environment.OSVersion.Version.Major;
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
         }
 
         private static Color GetReadableColor(Color backgroundColor)
@@ -1319,49 +1428,23 @@ namespace DarkModeForms
     public class MyRenderer : ToolStripProfessionalRenderer
     {
         public bool ColorizeIcons { get; set; } = true;
-        public OSThemeColors MyColors { get; set; } //<- Your Custom Colors Colection
+        public OSThemeColors MyColors { get; set; } = new OSThemeColors(); //<- Your Custom Colors Colection
 
         public MyRenderer(ProfessionalColorTable table, bool pColorizeIcons = true) : base(table)
         {
             ColorizeIcons = pColorizeIcons;
         }
 
-        private void DrawTitleBar(Graphics g, Rectangle rect)
-        {
-            // Assign the image for the grip.
-            //Image titlebarGrip = titleBarGripBmp;
-
-            // Fill the titlebar.
-            // This produces the gradient and the rounded-corner effect.
-            //g.DrawLine(new Pen(titlebarColor1), rect.X, rect.Y, rect.X + rect.Width, rect.Y);
-            //g.DrawLine(new Pen(titlebarColor2), rect.X, rect.Y + 1, rect.X + rect.Width, rect.Y + 1);
-            //g.DrawLine(new Pen(titlebarColor3), rect.X, rect.Y + 2, rect.X + rect.Width, rect.Y + 2);
-            //g.DrawLine(new Pen(titlebarColor4), rect.X, rect.Y + 3, rect.X + rect.Width, rect.Y + 3);
-            //g.DrawLine(new Pen(titlebarColor5), rect.X, rect.Y + 4, rect.X + rect.Width, rect.Y + 4);
-            //g.DrawLine(new Pen(titlebarColor6), rect.X, rect.Y + 5, rect.X + rect.Width, rect.Y + 5);
-            //g.DrawLine(new Pen(titlebarColor7), rect.X, rect.Y + 6, rect.X + rect.Width, rect.Y + 6);
-
-            // Center the titlebar grip.
-            //g.DrawImage(
-            //  titlebarGrip,
-            //  new Point(rect.X + ((rect.Width / 2) - (titlebarGrip.Width / 2)),
-            //  rect.Y + 1));
-        }
-
+        // Grip and ToolStrip border drawing were disabled upstream (DrawTitleBar had an
+        // entirely commented-out body). Keep these overrides empty to preserve that behavior.
         // This method handles the RenderGrip event.
         protected override void OnRenderGrip(ToolStripGripRenderEventArgs e)
         {
-            DrawTitleBar(
-              e.Graphics,
-              new Rectangle(0, 0, e.ToolStrip.Width, 7));
         }
 
         // This method handles the RenderToolStripBorder event.
         protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
         {
-            DrawTitleBar(
-              e.Graphics,
-              new Rectangle(0, 0, e.ToolStrip.Width, 7));
         }
 
         // Background of the whole ToolBar Or MenuBar:
@@ -1379,8 +1462,6 @@ namespace DarkModeForms
 
             Color gradientBegin = MyColors.Background; // Color.FromArgb(203, 225, 252);
             Color gradientEnd = MyColors.Background;
-
-            Pen BordersPencil = new Pen(MyColors.Background);
 
             ToolStripButton button = e.Item as ToolStripButton;
             if (button.Pressed || button.Checked)
@@ -1403,34 +1484,35 @@ namespace DarkModeForms
                 g.FillRectangle(b, bounds);
             }
 
-            e.Graphics.DrawRectangle(
-              BordersPencil,
-              bounds);
-
-            g.DrawLine(
-              BordersPencil,
-              bounds.X,
-              bounds.Y,
-              bounds.Width - 1,
-              bounds.Y);
-
-            g.DrawLine(
-              BordersPencil,
-              bounds.X,
-              bounds.Y,
-              bounds.X,
-              bounds.Height - 1);
-
-            ToolStrip toolStrip = button.Owner;
-
-            if (!(button.Owner.GetItemAt(button.Bounds.X, button.Bounds.Bottom + 1) is ToolStripButton nextItem))
+            using (Pen BordersPencil = new Pen(MyColors.Background))
             {
+                e.Graphics.DrawRectangle(
+                  BordersPencil,
+                  bounds);
+
                 g.DrawLine(
                   BordersPencil,
                   bounds.X,
-                  bounds.Height - 1,
-                  bounds.X + bounds.Width - 1,
+                  bounds.Y,
+                  bounds.Width - 1,
+                  bounds.Y);
+
+                g.DrawLine(
+                  BordersPencil,
+                  bounds.X,
+                  bounds.Y,
+                  bounds.X,
                   bounds.Height - 1);
+
+                if (!(button.Owner.GetItemAt(button.Bounds.X, button.Bounds.Bottom + 1) is ToolStripButton nextItem))
+                {
+                    g.DrawLine(
+                      BordersPencil,
+                      bounds.X,
+                      bounds.Height - 1,
+                      bounds.X + bounds.Width - 1,
+                      bounds.Height - 1);
+                }
             }
         }
 
@@ -1441,8 +1523,6 @@ namespace DarkModeForms
             Rectangle bounds = new Rectangle(Point.Empty, e.Item.Size);
             Color gradientBegin = MyColors.Background; // Color.FromArgb(203, 225, 252);
             Color gradientEnd = MyColors.Background;
-
-            Pen BordersPencil = new Pen(MyColors.Background);
 
             //1. Determine the colors to use:
             if (e.Item.Pressed)
@@ -1466,21 +1546,7 @@ namespace DarkModeForms
                 e.Graphics.FillRectangle(b, bounds);
             }
 
-            //3. Draws the Chevron:
-
-            #region Chevron
-
-            //int Padding = 2; //<- From the right side
-            //Size cSize = new Size(8, 4); //<- Size of the Chevron: 8x4 px
-            //Pen ChevronPen = new Pen(MyColors.TextInactive, 2); //<- Color and Border Width
-            //Point P1 = new Point(bounds.Width - (cSize.Width + Padding), (bounds.Height / 2) - (cSize.Height / 2));
-            //Point P2 = new Point(bounds.Width - Padding, (bounds.Height / 2) - (cSize.Height / 2));
-            //Point P3 = new Point(bounds.Width - (cSize.Width / 2 + Padding), (bounds.Height / 2) + (cSize.Height / 2));
-
-            //e.Graphics.DrawLine(ChevronPen, P1, P3);
-            //e.Graphics.DrawLine(ChevronPen, P2, P3);
-
-            #endregion Chevron
+            //3. The chevron is intentionally not drawn on drop-down buttons (commented out upstream).
         }
 
         // For SplitButtons on a ToolBar:
@@ -1518,13 +1584,15 @@ namespace DarkModeForms
 
             int Padding = 2; //<- From the right side
             Size cSize = new Size(8, 4); //<- Size of the Chevron: 8x4 px
-            Pen ChevronPen = new Pen(MyColors.TextInactive, 2); //<- Color and Border Width
             Point P1 = new Point(bounds.Width - (cSize.Width + Padding), (bounds.Height / 2) - (cSize.Height / 2));
             Point P2 = new Point(bounds.Width - Padding, (bounds.Height / 2) - (cSize.Height / 2));
             Point P3 = new Point(bounds.Width - (cSize.Width / 2 + Padding), (bounds.Height / 2) + (cSize.Height / 2));
 
-            e.Graphics.DrawLine(ChevronPen, P1, P3);
-            e.Graphics.DrawLine(ChevronPen, P2, P3);
+            using (Pen ChevronPen = new Pen(MyColors.TextInactive, 2)) //<- Color and Border Width
+            {
+                e.Graphics.DrawLine(ChevronPen, P1, P3);
+                e.Graphics.DrawLine(ChevronPen, P2, P3);
+            }
 
             #endregion Chevron
         }
@@ -1551,7 +1619,10 @@ namespace DarkModeForms
             if (e.Item is ComboBox)
             {
                 Rectangle rect = new Rectangle(Point.Empty, e.Item.Size);
-                e.Graphics.DrawRectangle(new Pen(MyColors.ControlLight, 1), rect);
+                using (Pen pen = new Pen(MyColors.ControlLight, 1))
+                {
+                    e.Graphics.DrawRectangle(pen, rect);
+                }
             }
         }
 
@@ -1688,9 +1759,9 @@ namespace DarkModeForms
         /// Gets the additional info associated with a Control
         /// </summary>
         /// <returns>a ControlStatusInfo object if the control has been already processed or marked for exclusion, null otherwise</returns>
-        public ControlStatusInfo GetControlStatusInfo(Control control)
+        public ControlStatusInfo? GetControlStatusInfo(Control control)
         {
-            _controlsProcessed.TryGetValue(control, out ControlStatusInfo info);
+            _controlsProcessed.TryGetValue(control, out ControlStatusInfo? info);
             return info;
         }
 
@@ -1715,5 +1786,11 @@ namespace DarkModeForms
         /// whether the last theme applied was dark
         /// </summary>
         public bool LastThemeAppliedIsDark { get; set; }
+
+        /// <summary>
+        /// ComboBox only: the DropDownStyle in use before dark mode temporarily switched a
+        /// disabled control to DropDownList (to hide the white edit field), so it can be restored.
+        /// </summary>
+        public ComboBoxStyle? OriginalDropDownStyle { get; set; }
     }
 }

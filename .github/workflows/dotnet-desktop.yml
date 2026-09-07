@@ -15,7 +15,7 @@ jobs:
     runs-on: windows-latest
     env:
       Solution_Name: src/DarkModeForms.sln
-      
+
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
@@ -24,7 +24,15 @@ jobs:
         dotnet-version: 8.0.x
     - name: Restore dependencies
       run: dotnet restore $env:Solution_Name
-    - name: Build
-      run: dotnet build $env:Solution_Name --no-restore -p:GenerateResourceUsePreserializedResources=true
-    #- name: Test
-      #run: dotnet test --no-build --verbosity normal
+    - name: Build (Release)
+      run: dotnet build $env:Solution_Name --no-restore -c Release -p:GenerateResourceUsePreserializedResources=true
+    - name: Test
+      run: dotnet test $env:Solution_Name --no-build -c Release
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: DarkModeForms-binaries
+        path: |
+          src/DarkModeForms/bin/Release/**
+          src/Example/bin/Release/**
+        if-no-files-found: error

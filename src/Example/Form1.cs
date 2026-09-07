@@ -246,7 +246,7 @@ namespace Example
 
 				//TODO: Here you should send the User/Password to your BackEnd for Validation
 				_isValid = _password == "password";
-				if (_isValid)
+				if (!_isValid)
 				{
 					_Fields[1].ErrorText = "Incorrect Password!";
 					E.Cancel = true; //<- Prevents the Dialog to be closed until is valid

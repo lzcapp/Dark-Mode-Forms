@@ -51,7 +51,7 @@ BoolControl.Validate += (object? _control, KeyValue.ValidateEventArgs _e) =>
    if (_e.NewValue == "False")
    {
       //_e.Cancel = true; //<- CAN CANCEL THE MODIFICATION
-      _e.ErrorText = "No puede ser Falso!";
+      _e.ErrorText = "It can't be False!";
    }
 };
 
@@ -118,7 +118,8 @@ if (Messenger.InputBox("Login", "Please Input your Credentials:", ref _Fields,
 
 ## Implementation
 
-- No Nuggets, No external DLLs, Just 1 File: [DarkModeCS.cs](src/DarkModeForms/DarkModeCS.cs) Copy/Paste or [Download](https://github.com/BlueMystical/Dark-Mode-Forms/releases/latest) and import it into your project.
+- No NuGet packages, no external DLLs. The core theme engine is a single self-contained file: [DarkModeCS.cs](src/DarkModeForms/DarkModeCS.cs). Copy/paste it, or [Download](https://github.com/BlueMystical/Dark-Mode-Forms/releases/latest) and import it into your project.
+- Optional themed controls ship in [src/DarkModeForms/DarkControls/](src/DarkModeForms/DarkControls/): [FlatTabControl](src/DarkModeForms/DarkControls/FlatTabControl.cs), [FlatProgressBar](src/DarkModeForms/DarkControls/FlatProgressBar.cs), [FlatComboBox](src/DarkModeForms/DarkControls/FlatComboBox.cs) and [Messenger](src/DarkModeForms/DarkControls/Messenger.cs). Copy only the ones you need (the Example app shows how to use them).
 
 ```csharp
 private DarkModeCS dm = null;
@@ -140,7 +141,7 @@ public Form1()
 
 ## Framework Compatibility
 
-- [.NET 4.8+](https://dotnet.microsoft.com/es-es/download/dotnet-framework/net48)
+- [.NET 4.8+](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48)
 - [.NET 6.0+](https://dotnet.microsoft.com/es-es/download/dotnet/6.0)
 - [.NET 8.0+](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
 - Some stuff may only work on Windows 11+
